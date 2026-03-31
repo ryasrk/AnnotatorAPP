@@ -166,6 +166,22 @@ def init_db():
             class_name TEXT NOT NULL,
             PRIMARY KEY (room_id, class_index)
         );
+        CREATE TABLE IF NOT EXISTS image_assignments (
+            room_id INTEGER REFERENCES rooms(id),
+            image_name TEXT NOT NULL,
+            user_id INTEGER REFERENCES users(id),
+            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (room_id, image_name)
+        );
+        CREATE TABLE IF NOT EXISTS image_reviews (
+            room_id INTEGER REFERENCES rooms(id),
+            image_name TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            reviewer_id INTEGER REFERENCES users(id),
+            reviewed_at TIMESTAMP,
+            comment TEXT DEFAULT '',
+            PRIMARY KEY (room_id, image_name)
+        );
     """)
     db.commit()
     db.close()
@@ -410,6 +426,30 @@ def api_create_room():
     db.commit()
     db.close()
     return jsonify({"status": "ok", "room_id": room_id, "code": code, "name": name})
+
+
+@app.route("/api/rooms/<int:room_id>", methods=["DELETE"])
+@login_required
+def api_delete_room(room_id):
+    user_id = session["user_id"]
+    db = get_db()
+    room = db.execute("SELECT * FROM rooms WHERE id = ?", (room_id,)).fetchone()
+    if not room:
+        db.close()
+        return jsonify({"error": "Room not found"}), 404
+    if room["created_by"] != user_id:
+        db.close()
+        return jsonify({"error": "Only the room creator can delete the room"}), 403
+    db.execute("DELETE FROM image_edits WHERE room_id = ?", (room_id,))
+    db.execute("DELETE FROM image_assignments WHERE room_id = ?", (room_id,))
+    db.execute("DELETE FROM image_reviews WHERE room_id = ?", (room_id,))
+    db.execute("DELETE FROM room_classes WHERE room_id = ?", (room_id,))
+    db.execute("DELETE FROM messages WHERE room_id = ?", (room_id,))
+    db.execute("DELETE FROM room_members WHERE room_id = ?", (room_id,))
+    db.execute("DELETE FROM rooms WHERE id = ?", (room_id,))
+    db.commit()
+    db.close()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/rooms/join", methods=["POST"])
@@ -736,12 +776,28 @@ def api_images():
     per_page = min(PER_PAGE_MAX, int(request.args.get("per_page", PER_PAGE_DEFAULT)))
     filter_type = request.args.get("filter", "all")
     search = request.args.get("search", "").lower()
+    sort = request.args.get("sort", "name-asc")
+    room_id = request.args.get("room_id", type=int)
+
+    # Pre-load assigned image names if filtering by assignment
+    assigned_names = set()
+    if filter_type == "assigned" and room_id and "user_id" in session:
+        db = get_db()
+        rows = db.execute(
+            "SELECT image_name FROM image_assignments WHERE room_id = ? AND user_id = ?",
+            (room_id, session["user_id"])
+        ).fetchall()
+        db.close()
+        assigned_names = {r["image_name"] for r in rows}
 
     filtered = []
     for name in _image_names:
         if search and search not in name.lower():
             continue
-        if filter_type != "all":
+        if filter_type == "assigned":
+            if name not in assigned_names:
+                continue
+        elif filter_type != "all":
             info = _get_annotation_info(name)
             if filter_type == "annotated" and not info["annotated"]:
                 continue
@@ -749,17 +805,31 @@ def api_images():
                 continue
         filtered.append(name)
 
+    # Sort
+    if sort == "name-desc":
+        filtered.sort(reverse=True)
+    elif sort == "annotated-first":
+        filtered.sort(key=lambda n: (0 if _get_annotation_info(n)["annotated"] else 1, n))
+    elif sort == "unannotated-first":
+        filtered.sort(key=lambda n: (1 if _get_annotation_info(n)["annotated"] else 0, n))
+    elif sort == "boxes-desc":
+        filtered.sort(key=lambda n: -_get_annotation_info(n)["bbox_count"])
+    elif sort == "boxes-asc":
+        filtered.sort(key=lambda n: _get_annotation_info(n)["bbox_count"])
+    # else name-asc (default, already sorted)
+
     total = len(filtered)
     start = page * per_page
     page_items = filtered[start:start + per_page]
 
     result = []
-    for name in page_items:
+    for i, name in enumerate(page_items):
         info = _get_annotation_info(name)
         result.append({
             "name": name,
             "annotated": info["annotated"],
             "bbox_count": info["bbox_count"],
+            "global_index": start + i + 1,
         })
 
     return jsonify({
@@ -901,14 +971,46 @@ def api_stats():
 
     annotated = sum(1 for v in cache.values() if v["annotated"])
     total_bboxes = sum(v["bbox_count"] for v in cache.values())
+    # Compute class distribution
+    class_dist = {}
+    for name in _image_names:
+        labels = _read_labels(name)
+        for lbl in labels:
+            cid = str(lbl["class_id"])
+            class_dist[cid] = class_dist.get(cid, 0) + 1
+
     return jsonify({
         "total_images": len(_image_names),
         "annotated": annotated,
         "unannotated": len(_image_names) - annotated,
         "total_bboxes": total_bboxes,
         "class_names": CLASS_NAMES,
+        "class_distribution": class_dist,
         "cache_ready": True,
     })
+
+
+@app.route("/api/dashboard-stats")
+@login_required
+def api_dashboard_stats():
+    """Per-member annotation statistics for dashboard."""
+    room_id = request.args.get("room_id") or session.get("room_id") or CURRENT_ROOM_ID
+    if not room_id:
+        return jsonify({"member_stats": []})
+
+    db = get_db()
+    stats = db.execute("""
+        SELECT u.id, u.username, u.display_name, u.color,
+               COUNT(ie.id) AS edit_count
+        FROM users u
+        JOIN room_members rm ON rm.user_id = u.id
+        LEFT JOIN image_edits ie ON ie.user_id = u.id AND ie.room_id = ?
+        WHERE rm.room_id = ?
+        GROUP BY u.id
+        ORDER BY edit_count DESC
+    """, (room_id, room_id)).fetchall()
+    db.close()
+    return jsonify({"member_stats": [dict(s) for s in stats]})
 
 
 @app.route("/api/export", methods=["POST"])
@@ -917,6 +1019,11 @@ def api_export():
     data = request.get_json() or {}
     train_ratio = max(0.1, min(0.95, float(data.get("train_ratio", 0.8))))
     seed = int(data.get("seed", 42))
+    export_format = data.get("format", "yolo")  # yolo, coco, voc
+    export_path = data.get("export_path", "").strip()
+
+    # If custom export path provided, use it
+    target_dir = Path(export_path) if export_path else EXPORT_DIR
 
     with _state_lock:
         annotated_images = [n for n, v in _image_cache.items() if v["annotated"]]
@@ -931,10 +1038,21 @@ def api_export():
     train_imgs = annotated_images[:split_idx]
     valid_imgs = annotated_images[split_idx:]
 
-    train_img_dir = EXPORT_DIR / "train" / "images"
-    train_lbl_dir = EXPORT_DIR / "train" / "labels"
-    valid_img_dir = EXPORT_DIR / "valid" / "images"
-    valid_lbl_dir = EXPORT_DIR / "valid" / "labels"
+    if export_format == "yolo":
+        return _export_yolo(target_dir, train_imgs, valid_imgs)
+    elif export_format == "coco":
+        return _export_coco(target_dir, train_imgs, valid_imgs)
+    elif export_format == "voc":
+        return _export_voc(target_dir, train_imgs, valid_imgs)
+    else:
+        return jsonify({"error": "Unsupported format: " + export_format}), 400
+
+
+def _export_yolo(target_dir, train_imgs, valid_imgs):
+    train_img_dir = target_dir / "train" / "images"
+    train_lbl_dir = target_dir / "train" / "labels"
+    valid_img_dir = target_dir / "valid" / "images"
+    valid_lbl_dir = target_dir / "valid" / "labels"
 
     for d in [train_img_dir, train_lbl_dir, valid_img_dir, valid_lbl_dir]:
         if d.exists():
@@ -953,7 +1071,7 @@ def api_export():
     copy_split(train_imgs, train_img_dir, train_lbl_dir)
     copy_split(valid_imgs, valid_img_dir, valid_lbl_dir)
 
-    data_yaml = EXPORT_DIR / "data.yaml"
+    data_yaml = target_dir / "data.yaml"
     with open(data_yaml, "w") as f:
         f.write("train: ../train/images\n")
         f.write("val: ../valid/images\n\n")
@@ -961,10 +1079,110 @@ def api_export():
         f.write(f"names: {CLASS_NAMES}\n")
 
     return jsonify({
-        "status": "exported",
+        "status": "exported", "format": "yolo",
         "train_count": len(train_imgs),
         "valid_count": len(valid_imgs),
-        "export_dir": str(EXPORT_DIR),
+        "export_dir": str(target_dir),
+    })
+
+
+def _export_coco(target_dir, train_imgs, valid_imgs):
+    """Export in COCO JSON format."""
+    from PIL import Image as PILImage
+
+    def build_coco(img_list, split_name):
+        out_img_dir = target_dir / split_name / "images"
+        out_img_dir.mkdir(parents=True, exist_ok=True)
+        coco = {
+            "images": [], "annotations": [], "categories": [
+                {"id": i, "name": n} for i, n in enumerate(CLASS_NAMES)
+            ]
+        }
+        ann_id = 1
+        for img_id, img_name in enumerate(img_list, 1):
+            src_img = RAW_IMAGES_DIR / img_name
+            if not src_img.exists():
+                continue
+            shutil.copy2(str(src_img), str(out_img_dir / img_name))
+            try:
+                with PILImage.open(src_img) as pil_img:
+                    w, h = pil_img.size
+            except Exception:
+                w, h = 640, 640
+            coco["images"].append({"id": img_id, "file_name": img_name, "width": w, "height": h})
+            for lbl in _read_labels(img_name):
+                bw = lbl["w"] * w
+                bh = lbl["h"] * h
+                bx = (lbl["cx"] - lbl["w"] / 2) * w
+                by = (lbl["cy"] - lbl["h"] / 2) * h
+                coco["annotations"].append({
+                    "id": ann_id, "image_id": img_id, "category_id": lbl["class_id"],
+                    "bbox": [round(bx, 2), round(by, 2), round(bw, 2), round(bh, 2)],
+                    "area": round(bw * bh, 2), "iscrowd": 0,
+                })
+                ann_id += 1
+        out_json = target_dir / split_name / f"{split_name}.json"
+        with open(out_json, "w") as f:
+            json.dump(coco, f, indent=2)
+
+    build_coco(train_imgs, "train")
+    build_coco(valid_imgs, "valid")
+
+    return jsonify({
+        "status": "exported", "format": "coco",
+        "train_count": len(train_imgs),
+        "valid_count": len(valid_imgs),
+        "export_dir": str(target_dir),
+    })
+
+
+def _export_voc(target_dir, train_imgs, valid_imgs):
+    """Export in Pascal VOC XML format."""
+    from PIL import Image as PILImage
+
+    def write_voc_xml(img_name, labels, img_w, img_h, out_dir):
+        stem = Path(img_name).stem
+        xml = f'<annotation>\n  <filename>{img_name}</filename>\n'
+        xml += f'  <size><width>{img_w}</width><height>{img_h}</height><depth>3</depth></size>\n'
+        for lbl in labels:
+            cls_name = CLASS_NAMES[lbl["class_id"]] if lbl["class_id"] < len(CLASS_NAMES) else f"class_{lbl['class_id']}"
+            xmin = max(0, int((lbl["cx"] - lbl["w"] / 2) * img_w))
+            ymin = max(0, int((lbl["cy"] - lbl["h"] / 2) * img_h))
+            xmax = min(img_w, int((lbl["cx"] + lbl["w"] / 2) * img_w))
+            ymax = min(img_h, int((lbl["cy"] + lbl["h"] / 2) * img_h))
+            xml += f'  <object>\n    <name>{cls_name}</name>\n    <bndbox>\n'
+            xml += f'      <xmin>{xmin}</xmin><ymin>{ymin}</ymin><xmax>{xmax}</xmax><ymax>{ymax}</ymax>\n'
+            xml += f'    </bndbox>\n  </object>\n'
+        xml += '</annotation>'
+        with open(out_dir / f"{stem}.xml", "w") as f:
+            f.write(xml)
+
+    def export_split(img_list, split_name):
+        img_dir = target_dir / split_name / "images"
+        ann_dir = target_dir / split_name / "annotations"
+        img_dir.mkdir(parents=True, exist_ok=True)
+        ann_dir.mkdir(parents=True, exist_ok=True)
+        for img_name in img_list:
+            src_img = RAW_IMAGES_DIR / img_name
+            if not src_img.exists():
+                continue
+            shutil.copy2(str(src_img), str(img_dir / img_name))
+            try:
+                with PILImage.open(src_img) as pil_img:
+                    w, h = pil_img.size
+            except Exception:
+                w, h = 640, 640
+            labels = _read_labels(img_name)
+            write_voc_xml(img_name, labels, w, h, ann_dir)
+
+    export_split(train_imgs, "train")
+    export_split(valid_imgs, "valid")
+
+    return jsonify({
+        "status": "exported", "format": "voc",
+        "train_count": len(train_imgs),
+        "valid_count": len(valid_imgs),
+        "export_dir": str(target_dir),
     })
 
 
@@ -1375,8 +1593,9 @@ def _add_train_log(session_id, message, log_type="info"):
 
 
 def _parse_progress(session_id, line):
-    """Try to extract epoch progress from ultralytics output."""
-    # Ultralytics prints lines like: "      3/100      0.123G  ..." 
+    """Try to extract epoch progress and metrics from ultralytics output."""
+    # Ultralytics prints lines like: "      3/100      1.23G    0.045    0.032    0.018   ..." 
+    import re
     try:
         stripped = line.strip()
         parts = stripped.split()
@@ -1385,19 +1604,73 @@ def _parse_progress(session_id, line):
             if len(ep_parts) == 2 and ep_parts[0].isdigit() and ep_parts[1].isdigit():
                 current_epoch = int(ep_parts[0])
                 total_epochs = int(ep_parts[1])
-                with _training_sessions_lock:
-                    sess = _training_sessions.get(session_id)
-                    if sess:
-                        sess["progress"] = {
-                            "current_epoch": current_epoch,
-                            "total_epochs": total_epochs,
-                            "percent": round(current_epoch / total_epochs * 100, 1),
-                        }
-                socketio.emit("train_progress", {
-                    "session_id": session_id,
+                # Try to extract numeric metrics from remaining columns
+                metrics = {}
+                float_vals = []
+                for p in parts[1:]:
+                    p_clean = p.rstrip('G')  # Remove GPU memory suffix
+                    try:
+                        float_vals.append(float(p_clean))
+                    except ValueError:
+                        continue
+                # Ultralytics typically outputs: gpu_mem, box_loss, cls_loss, dfl_loss, instances, size
+                if len(float_vals) >= 4:
+                    metrics["box_loss"] = float_vals[1]
+                    metrics["cls_loss"] = float_vals[2]
+                    metrics["dfl_loss"] = float_vals[3]
+
+                progress_data = {
                     "current_epoch": current_epoch,
                     "total_epochs": total_epochs,
                     "percent": round(current_epoch / total_epochs * 100, 1),
+                }
+                progress_data.update(metrics)
+
+                with _training_sessions_lock:
+                    sess = _training_sessions.get(session_id)
+                    if sess:
+                        sess["progress"] = progress_data
+                        # Accumulate metrics history for charts
+                        if "metrics_history" not in sess:
+                            sess["metrics_history"] = []
+                        entry = {"epoch": current_epoch}
+                        entry.update(metrics)
+                        # Only add if this epoch is new
+                        if not sess["metrics_history"] or sess["metrics_history"][-1]["epoch"] != current_epoch:
+                            sess["metrics_history"].append(entry)
+
+                socketio.emit("train_progress", {
+                    "session_id": session_id,
+                    **progress_data,
+                }, room="training")
+        # Also parse validation metrics lines: "all   N   mAP50  mAP50-95"
+        if "all" in stripped and ("mAP" in line or re.search(r'\d+\.\d+\s+\d+\.\d+\s*$', stripped)):
+            nums = re.findall(r'[\d.]+', stripped)
+            floats = []
+            for n in nums:
+                try:
+                    floats.append(float(n))
+                except ValueError:
+                    pass
+            if len(floats) >= 4:
+                val_metrics = {
+                    "val_precision": floats[-4],
+                    "val_recall": floats[-3],
+                    "val_mAP50": floats[-2],
+                    "val_mAP50_95": floats[-1],
+                }
+                with _training_sessions_lock:
+                    sess = _training_sessions.get(session_id)
+                    if sess:
+                        if "metrics_history" not in sess:
+                            sess["metrics_history"] = []
+                        # Append val metrics to the last epoch entry
+                        if sess["metrics_history"]:
+                            sess["metrics_history"][-1].update(val_metrics)
+                        sess["progress"].update(val_metrics)
+                socketio.emit("train_metrics", {
+                    "session_id": session_id,
+                    **val_metrics,
                 }, room="training")
     except (ValueError, IndexError, ZeroDivisionError):
         pass
@@ -1437,6 +1710,7 @@ def api_train_status():
                 "model": sess["model"],
                 "data_yaml": sess["data_yaml"],
                 "progress": sess.get("progress", {}),
+                "metrics_history": sess.get("metrics_history", []),
                 "log": [{"message": l["message"], "type": l["type"]} for l in sess["log"]],
                 "created_at": sess["created_at"],
             })
@@ -1637,6 +1911,302 @@ def api_gpu_info():
 
 
 # =============================================================================
+# Image Assignments
+# =============================================================================
+
+@app.route("/api/assignments/<int:room_id>", methods=["GET"])
+@login_required
+def api_get_assignments(room_id):
+    db = get_db()
+    rows = db.execute(
+        "SELECT a.image_name, a.user_id, u.username, u.display_name, u.color "
+        "FROM image_assignments a JOIN users u ON a.user_id = u.id WHERE a.room_id = ?",
+        (room_id,)
+    ).fetchall()
+    db.close()
+    return jsonify({"assignments": {r["image_name"]: {"user_id": r["user_id"], "username": r["username"],
+        "display_name": r["display_name"], "color": r["color"]} for r in rows}})
+
+
+@app.route("/api/assignments/<int:room_id>", methods=["POST"])
+@login_required
+def api_set_assignments(room_id):
+    data = request.get_json()
+    image_names = data.get("image_names", [])
+    user_id = data.get("user_id")
+    if not image_names:
+        return jsonify({"error": "No images specified"}), 400
+    db = get_db()
+    for name in image_names:
+        if user_id:
+            db.execute(
+                "INSERT OR REPLACE INTO image_assignments (room_id, image_name, user_id) VALUES (?, ?, ?)",
+                (room_id, name, user_id)
+            )
+        else:
+            db.execute("DELETE FROM image_assignments WHERE room_id = ? AND image_name = ?", (room_id, name))
+    db.commit()
+    db.close()
+    return jsonify({"ok": True, "count": len(image_names)})
+
+
+@app.route("/api/assignments/<int:room_id>/distribute", methods=["POST"])
+@login_required
+def api_distribute_assignments(room_id):
+    """Distribute all images among members based on percentage ratios."""
+    data = request.get_json()
+    ratios = data.get("ratios", [])  # [{user_id: int, pct: int}]
+    if not ratios:
+        return jsonify({"error": "No ratios provided"}), 400
+
+    total_pct = sum(r.get("pct", 0) for r in ratios)
+    if total_pct == 0:
+        return jsonify({"error": "Total percentage is 0"}), 400
+
+    all_images = list(_image_names)  # All image names in order
+    if not all_images:
+        return jsonify({"error": "No images available"}), 400
+
+    db = get_db()
+    # Clear existing assignments for this room
+    db.execute("DELETE FROM image_assignments WHERE room_id = ?", (room_id,))
+
+    # Distribute proportionally
+    idx = 0
+    active_ratios = [r for r in ratios if r.get("pct", 0) > 0]
+    for r in active_ratios:
+        count = round(len(all_images) * r["pct"] / 100)
+        user_id = r["user_id"]
+        for i in range(count):
+            if idx >= len(all_images):
+                break
+            db.execute(
+                "INSERT INTO image_assignments (room_id, image_name, user_id) VALUES (?, ?, ?)",
+                (room_id, all_images[idx], user_id)
+            )
+            idx += 1
+
+    # Assign remaining to last active member
+    if active_ratios and idx < len(all_images):
+        last_uid = active_ratios[-1]["user_id"]
+        while idx < len(all_images):
+            db.execute(
+                "INSERT INTO image_assignments (room_id, image_name, user_id) VALUES (?, ?, ?)",
+                (room_id, all_images[idx], last_uid)
+            )
+            idx += 1
+
+    db.commit()
+    db.close()
+    return jsonify({"ok": True, "total": len(all_images), "assigned": idx})
+
+
+# =============================================================================
+# Batch Operations
+# =============================================================================
+
+@app.route("/api/batch/delete-labels", methods=["POST"])
+@login_required
+def api_batch_delete_labels():
+    data = request.get_json()
+    image_names = data.get("image_names", [])
+    if not image_names:
+        return jsonify({"error": "No images specified"}), 400
+    deleted = 0
+    for name in image_names:
+        stem = Path(name).stem
+        label_path = RAW_LABELS_DIR / f"{stem}.txt"
+        if label_path.exists():
+            label_path.unlink()
+            deleted += 1
+    _build_cache()
+    return jsonify({"ok": True, "deleted": deleted})
+
+
+@app.route("/api/batch/reassign-class", methods=["POST"])
+@login_required
+def api_batch_reassign_class():
+    data = request.get_json()
+    image_names = data.get("image_names", [])
+    from_class = data.get("from_class")
+    to_class = data.get("to_class")
+    if from_class is None or to_class is None:
+        return jsonify({"error": "from_class and to_class required"}), 400
+    modified = 0
+    for name in image_names:
+        stem = Path(name).stem
+        label_path = RAW_LABELS_DIR / f"{stem}.txt"
+        if label_path.exists():
+            lines = label_path.read_text().strip().split("\n")
+            new_lines = []
+            changed = False
+            for line in lines:
+                parts = line.strip().split()
+                if parts and parts[0] == str(from_class):
+                    parts[0] = str(to_class)
+                    changed = True
+                new_lines.append(" ".join(parts))
+            if changed:
+                label_path.write_text("\n".join(new_lines) + "\n")
+                modified += 1
+    _build_cache()
+    return jsonify({"ok": True, "modified": modified})
+
+
+# =============================================================================
+# Quality Metrics
+# =============================================================================
+
+@app.route("/api/quality-metrics")
+@login_required
+def api_quality_metrics():
+    """Compute annotation quality metrics for the current dataset."""
+    total_images = len(_image_names)
+    annotated = 0
+    total_boxes = 0
+    class_counts = {}
+    box_counts = []
+    tiny_boxes = 0
+    huge_boxes = 0
+
+    for name in _image_names:
+        stem = Path(name).stem
+        label_path = RAW_LABELS_DIR / f"{stem}.txt"
+        if label_path.exists():
+            text = label_path.read_text().strip()
+            if text:
+                lines = text.split("\n")
+                num_boxes = len(lines)
+                annotated += 1
+                total_boxes += num_boxes
+                box_counts.append(num_boxes)
+                for line in lines:
+                    parts = line.strip().split()
+                    if len(parts) >= 5:
+                        cls_id = parts[0]
+                        class_counts[cls_id] = class_counts.get(cls_id, 0) + 1
+                        w, h = float(parts[3]), float(parts[4])
+                        area = w * h
+                        if area < 0.001:
+                            tiny_boxes += 1
+                        elif area > 0.5:
+                            huge_boxes += 1
+            else:
+                box_counts.append(0)
+        else:
+            box_counts.append(0)
+
+    avg_boxes = round(total_boxes / annotated, 1) if annotated else 0
+    max_boxes = max(box_counts) if box_counts else 0
+
+    # Class balance: stddev of class counts
+    if class_counts:
+        vals = list(class_counts.values())
+        mean_c = sum(vals) / len(vals)
+        variance = sum((v - mean_c) ** 2 for v in vals) / len(vals)
+        class_balance_score = round(1.0 - min(1.0, (variance ** 0.5) / (mean_c + 1)), 2)
+    else:
+        class_balance_score = 0
+
+    return jsonify({
+        "total_images": total_images,
+        "annotated_images": annotated,
+        "unannotated_images": total_images - annotated,
+        "total_boxes": total_boxes,
+        "avg_boxes_per_image": avg_boxes,
+        "max_boxes": max_boxes,
+        "class_distribution": class_counts,
+        "class_balance_score": class_balance_score,
+        "tiny_boxes": tiny_boxes,
+        "huge_boxes": huge_boxes,
+        "annotation_coverage": round(annotated / total_images * 100, 1) if total_images else 0,
+    })
+
+
+# =============================================================================
+# Model Inference Preview
+# =============================================================================
+
+@app.route("/api/inference/predict", methods=["POST"])
+@login_required
+def api_inference_predict():
+    """Run a trained model on a single image and return detections."""
+    data = request.get_json()
+    model_path = data.get("model_path", "")
+    image_name = data.get("image_name", "")
+    confidence = data.get("confidence", 0.25)
+
+    if not model_path or not image_name:
+        return jsonify({"error": "model_path and image_name required"}), 400
+
+    model_file = Path(model_path)
+    if not model_file.exists():
+        return jsonify({"error": "Model file not found"}), 404
+
+    image_path = RAW_IMAGES_DIR / image_name
+    if not image_path.exists():
+        return jsonify({"error": "Image not found"}), 404
+
+    try:
+        from ultralytics import YOLO
+        model = YOLO(str(model_file))
+        results = model.predict(str(image_path), conf=confidence, verbose=False)
+        model_names = model.names if hasattr(model, 'names') else {}
+        detections = []
+        for r in results:
+            for box in r.boxes:
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                img_w, img_h = r.orig_shape[1], r.orig_shape[0]
+                cx = (x1 + x2) / 2 / img_w
+                cy = (y1 + y2) / 2 / img_h
+                bw = (x2 - x1) / img_w
+                bh = (y2 - y1) / img_h
+                cls_id = int(box.cls[0])
+                detections.append({
+                    "class_id": cls_id,
+                    "class_name": model_names.get(cls_id, f"class_{cls_id}"),
+                    "confidence": round(float(box.conf[0]), 3),
+                    "cx": round(cx, 6), "cy": round(cy, 6),
+                    "w": round(bw, 6), "h": round(bh, 6),
+                })
+        return jsonify({"ok": True, "detections": detections, "count": len(detections),
+                        "model_names": {str(k): v for k, v in model_names.items()}})
+    except ImportError:
+        return jsonify({"error": "ultralytics not installed"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/inference/models")
+@login_required
+def api_inference_models():
+    """List available trained model weights."""
+    models = []
+    # Check common YOLO output paths
+    search_dirs = [
+        BASE_DIR / "runs",
+        EXPORT_DIR,
+        Path(__file__).resolve().parent,
+    ]
+    for search_dir in search_dirs:
+        if search_dir.exists():
+            for pt_file in search_dir.rglob("*.pt"):
+                models.append({
+                    "name": pt_file.name,
+                    "path": str(pt_file),
+                    "size_mb": round(pt_file.stat().st_size / (1024 * 1024), 1),
+                })
+    # Deduplicate by path
+    seen = set()
+    unique = []
+    for m in models:
+        if m["path"] not in seen:
+            seen.add(m["path"])
+            unique.append(m)
+    return jsonify({"models": unique})
+
+
+# =============================================================================
 # WebSocket Events
 # =============================================================================
 
@@ -1730,6 +2300,26 @@ def ws_join_training():
 @socketio.on("leave_training")
 def ws_leave_training():
     leave_room("training")
+
+
+@socketio.on("cursor_move")
+def ws_cursor_move(data):
+    """Broadcast cursor position to other users in the room."""
+    sid = request.sid
+    with _online_lock:
+        user_info = _online_users.get(sid)
+    if not user_info or not user_info.get("room_id"):
+        return
+    room_id = user_info["room_id"]
+    emit("cursor_update", {
+        "user_id": user_info["user_id"],
+        "username": user_info["username"],
+        "display_name": user_info["display_name"],
+        "color": user_info["color"],
+        "x": data.get("x", 0),
+        "y": data.get("y", 0),
+        "image_name": data.get("image_name", ""),
+    }, room=f"room_{room_id}", include_self=False)
 
 
 # =============================================================================

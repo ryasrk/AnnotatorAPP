@@ -223,15 +223,15 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
 .search-bar input { width: 100%; padding: 6px 10px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; border-radius: 4px; font-size: 12px; }
 
 .image-list { flex: 1; overflow-y: auto; }
-.image-item { padding: 6px 16px; cursor: pointer; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.image-item { padding: 5px 12px; cursor: pointer; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 8px; font-size: 11px; }
 .image-item:hover { background: #1a1a3e; }
 .image-item.active { background: #0f3460; border-left: 3px solid #e94560; }
+.image-item .item-number { color: #555; font-size: 10px; min-width: 32px; text-align: right; flex-shrink: 0; font-family: monospace; }
 .image-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .image-item .dot.annotated { background: #4caf50; }
 .image-item .dot.empty { background: #ff9800; }
-.image-item .user-edit-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; border: 1px solid #333; }
 .image-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.image-item .count { color: #888; font-size: 10px; }
+.image-item .box-count { color: #888; font-size: 10px; min-width: 28px; text-align: right; flex-shrink: 0; }
 
 .pagination-bar { padding:6px 16px; display:flex; align-items:center; justify-content:center; gap:4px; border-top:1px solid #0f3460; }
 .pagination-bar button { padding:4px 8px; border:1px solid #0f3460; background:#1a1a2e; color:#ccc; border-radius:4px; cursor:pointer; font-size:11px; }
@@ -264,6 +264,9 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
 .bbox-item .bbox-info { flex: 1; }
 .bbox-item .bbox-delete { color: #e94560; cursor: pointer; padding: 2px 6px; border-radius: 2px; }
 .bbox-item .bbox-delete:hover { background: #e94560; color: #fff; }
+.bbox-item .bbox-class-edit { cursor:pointer; padding:1px 4px; border-radius:3px; }
+.bbox-item .bbox-class-edit:hover { background:#0f3460; }
+.bbox-item .bbox-class-dropdown { width:100%; padding:3px 4px; background:#1a1a2e; color:#e0e0e0; border:1px solid #e94560; border-radius:3px; font-size:11px; outline:none; }
 
 .class-select { width: 100%; padding: 6px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; border-radius: 4px; font-size:12px; }
 
@@ -327,6 +330,94 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
 .user-legend-title { font-size:10px; color:#888; margin-bottom:4px; }
 .user-legend-item { display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; }
 .user-legend-item .dot { width:6px; height:6px; border-radius:50%; }
+
+/* Shortcuts Modal */
+.shortcuts-modal { min-width:550px; max-width:650px; }
+.shortcuts-modal .shortcut-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; }
+.shortcuts-modal .shortcut-row { display:flex; align-items:center; gap:8px; font-size:12px; }
+.shortcuts-modal .shortcut-row kbd { background:#0f3460; padding:3px 8px; border-radius:3px; font-family:monospace; font-size:11px; color:#e94560; min-width:30px; text-align:center; border:1px solid #1a3a6e; }
+.shortcuts-modal .shortcut-row span { color:#ccc; }
+.shortcuts-modal .shortcut-section { grid-column:1/-1; font-size:11px; color:#e94560; font-weight:bold; margin-top:8px; border-bottom:1px solid #0f3460; padding-bottom:4px; }
+
+/* Dashboard Modal */
+.dashboard-modal { min-width:600px; max-width:750px; }
+.dash-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:16px; }
+.dash-card { background:#1a1a2e; border:1px solid #0f3460; border-radius:6px; padding:12px; text-align:center; }
+.dash-card .dash-value { font-size:22px; font-weight:bold; color:#e94560; }
+.dash-card .dash-label { font-size:10px; color:#888; margin-top:2px; }
+.dash-class-bar { display:flex; align-items:center; gap:8px; font-size:11px; margin:4px 0; }
+.dash-class-bar .bar { flex:1; height:16px; background:#0f3460; border-radius:3px; overflow:hidden; }
+.dash-class-bar .bar-fill { height:100%; border-radius:3px; }
+.dash-class-bar .bar-label { min-width:80px; color:#ccc; }
+.dash-class-bar .bar-count { min-width:40px; text-align:right; color:#888; }
+.dash-member-stats { margin-top:12px; }
+.dash-member-row { display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11px; border-bottom:1px solid #0f3460; }
+.dash-member-row .dm-color { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.dash-member-row .dm-name { min-width:100px; color:#ccc; }
+.dash-member-row .dm-count { color:#e94560; font-weight:bold; }
+
+/* Sort dropdown */
+.sort-bar { padding:4px 8px; border-bottom:1px solid #0f3460; display:flex; align-items:center; gap:4px; }
+.sort-bar select { background:#1a1a2e; color:#ccc; border:1px solid #0f3460; border-radius:3px; font-size:10px; padding:2px 4px; flex:1; }
+.sort-bar label { font-size:10px; color:#888; }
+
+/* Assign overlay */
+.assign-badge { position:absolute; top:2px; right:2px; font-size:8px; background:#e94560; color:#fff; border-radius:3px; padding:1px 4px; }
+
+
+
+/* Dataset split modal */
+.split-preview { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:12px 0; }
+.split-card { background:#1a1a2e; border:1px solid #0f3460; border-radius:6px; padding:10px; text-align:center; }
+.split-card .split-name { font-size:11px; color:#888; }
+.split-card .split-count { font-size:18px; font-weight:bold; color:#e94560; }
+
+/* Training chart */
+.train-chart-container { height:200px; background:#1a1a2e; border:1px solid #0f3460; border-radius:6px; margin:8px 0; position:relative; overflow:hidden; }
+.train-chart-canvas { width:100%; height:100%; }
+
+/* Notification toast (top-right) */
+.notif-popup { position:fixed; top:16px; right:16px; background:#16213e; border:1px solid #0f3460; border-radius:8px; padding:12px 16px; z-index:3000; display:none; max-width:300px; box-shadow:0 4px 12px rgba(0,0,0,0.4); animation: notif-slide 0.3s ease-out; }
+.notif-popup.show { display:block; }
+.notif-popup .notif-title { font-size:12px; font-weight:bold; color:#e94560; }
+.notif-popup .notif-body { font-size:11px; color:#ccc; margin-top:4px; }
+@keyframes notif-slide { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+
+/* Remote cursors */
+.remote-cursor { position:absolute; pointer-events:none; z-index:100; transition:left 0.1s, top 0.1s; }
+.remote-cursor .cursor-arrow { width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-bottom:12px solid currentColor; transform:rotate(-30deg); }
+.remote-cursor .cursor-label { font-size:9px; padding:1px 5px; border-radius:3px; color:#fff; white-space:nowrap; margin-top:-2px; margin-left:10px; }
+
+/* Batch select mode */
+.batch-toolbar { display:none; padding:4px 8px; background:#1a1a2e; border-bottom:1px solid #0f3460; font-size:11px; align-items:center; gap:4px; flex-shrink:0; flex-wrap:wrap; overflow:hidden; max-width:300px; box-sizing:border-box; }
+.batch-toolbar.show { display:flex; }
+.batch-toolbar .batch-count { color:#e94560; font-weight:bold; }
+.batch-toolbar button { font-size:10px; padding:2px 6px; cursor:pointer; border-radius:4px; border:1px solid #0f3460; background:#16213e; color:#ccc; white-space:nowrap; }
+.batch-toolbar button:hover { background:#0f3460; }
+
+
+
+/* Assign indicator in image list */
+.image-thumb .assign-indicator { position:absolute; bottom:2px; left:2px; width:10px; height:10px; border-radius:50%; z-index:5; border:1px solid rgba(255,255,255,0.3); }
+
+/* Quality metrics panel */
+.quality-panel { padding:8px; font-size:11px; }
+.quality-row { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #0f346033; }
+.quality-row .label { color:#888; }
+.quality-row .value { color:#e2e2e2; font-weight:bold; }
+.quality-bar { height:6px; border-radius:3px; background:#1a1a2e; margin:4px 0; overflow:hidden; }
+.quality-bar .fill { height:100%; border-radius:3px; transition:width 0.3s; }
+.quality-score { font-size:20px; font-weight:bold; text-align:center; padding:8px; }
+.quality-score.good { color:#4caf50; }
+.quality-score.ok { color:#ff9800; }
+.quality-score.bad { color:#e94560; }
+
+/* Inference overlay */
+.inference-box { position:absolute; border:2px dashed rgba(0,255,136,0.7); pointer-events:none; z-index:90; }
+.inference-box .inf-label { position:absolute; top:-16px; left:0; font-size:9px; padding:1px 4px; background:rgba(0,255,136,0.8); color:#000; border-radius:2px; white-space:nowrap; }
+.inference-toolbar { display:none; padding:4px 8px; background:#1a1a2e; border-top:1px solid #0f3460; font-size:11px; align-items:center; gap:6px; }
+.inference-toolbar.show { display:flex; }
+.inference-toolbar select, .inference-toolbar input { font-size:11px; padding:2px 6px; background:#16213e; color:#ccc; border:1px solid #0f3460; border-radius:3px; }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #1a1a2e; }
@@ -483,6 +574,9 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
             <button class="btn-stop-session" id="sessionRemoveBtn" onclick="removeTrainingSession()" style="background:#666;">🗑 Remove</button>
           </div>
           <div class="session-log" id="sessionLogContent"></div>
+          <div class="train-chart-container" id="trainChartContainer" style="display:none;">
+            <canvas class="train-chart-canvas" id="trainChartCanvas"></canvas>
+          </div>
         </div>
 
         <!-- Empty State -->
@@ -518,7 +612,8 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
       </div>
       <div style="padding:6px 16px; display:flex; gap:4px;">
         <button class="tool-btn" style="flex:1; font-size:11px;" id="openFolderBtn" title="Open image folder">📂 Open</button>
-        <button class="tool-btn" style="flex:1; font-size:11px;" id="saveFolderBtn" title="Set export folder">💾 Save</button>
+        <button class="tool-btn" style="flex:1; font-size:11px;" onclick="toggleBatchMode()" title="Multi-select mode">☑ Batch</button>
+        <button class="tool-btn" style="flex:1; font-size:11px;" onclick="openSettingsModal()" title="Settings">⚙ Settings</button>
       </div>
       <div class="dir-display" id="dirDisplay">Loading...</div>
       <div class="user-legend" id="userLegend" style="display:none;">
@@ -529,9 +624,30 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
         <button class="active" data-filter="all">All</button>
         <button data-filter="annotated">Annotated</button>
         <button data-filter="unannotated">Empty</button>
+        <button data-filter="assigned">Assigned</button>
       </div>
       <div class="search-bar">
         <input type="text" id="searchInput" placeholder="Search images...">
+      </div>
+      <div class="sort-bar">
+        <label>Sort:</label>
+        <select id="sortSelect" onchange="changeSortOrder()">
+          <option value="name-asc">Name A→Z</option>
+          <option value="name-desc">Name Z→A</option>
+          <option value="annotated-first">Annotated First</option>
+          <option value="unannotated-first">Unannotated First</option>
+          <option value="boxes-desc">Most Boxes</option>
+          <option value="boxes-asc">Fewest Boxes</option>
+        </select>
+      </div>
+      <div class="batch-toolbar" id="batchToolbar">
+        <span>Selected: <span class="batch-count" id="batchCount">0</span></span>
+        <button onclick="batchSelectAll()">All</button>
+        <button onclick="batchSelectNone()">None</button>
+        <button onclick="batchDeleteLabels()" title="Delete labels for selected">🗑 Labels</button>
+        <button onclick="openBatchReassign()" title="Reassign class">🔄 Class</button>
+        <button onclick="openBatchAssign()" title="Assign to member">👤 Assign</button>
+
       </div>
       <div class="image-list" id="imageList"></div>
       <div class="pagination-bar" id="paginationBar">
@@ -569,6 +685,14 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
         <span id="zoomDisplay">Zoom: 100%</span>
         <span id="modeDisplay">Mode: Draw</span>
       </div>
+      <div class="inference-toolbar" id="inferenceToolbar">
+        <span>🔮 Inference:</span>
+        <select id="inferenceModelSelect"><option value="">Select model...</option></select>
+        <label>Conf: <input type="range" id="inferenceConfSlider" min="5" max="95" value="25" style="width:60px;" oninput="document.getElementById('inferenceConfVal').textContent=this.value+'%'"><span id="inferenceConfVal">25%</span></label>
+        <button onclick="runInference()" style="background:#4caf50; color:#fff; border:none; border-radius:3px; padding:2px 8px; cursor:pointer;">▶ Run</button>
+        <button onclick="clearInference()">✕ Clear</button>
+        <button onclick="acceptInference()" title="Accept detections as labels">✅ Accept</button>
+      </div>
     </div>
 
     <div class="right-panel">
@@ -582,19 +706,28 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
       </div>
       <div class="panel-section"><h3>Bounding Boxes</h3></div>
       <div class="bbox-list" id="bboxList"><div style="padding:16px;color:#666;font-size:12px;">No boxes yet</div></div>
+
       <div class="panel-section">
-        <h3>Shortcuts</h3>
+        <h3>Assign <span id="assigneeBadge" style="font-size:10px; color:#888;"></span></h3>
+        <div id="assignMemberList" style="max-height:200px; overflow-y:auto; font-size:11px;"></div>
+        <button class="tool-btn" style="font-size:10px; margin-top:6px; width:100%;" onclick="distributeAssignments()">Set Assignments</button>
+      </div>
+      <div class="panel-section">
+        <h3>Quality <span style="float:right;cursor:pointer;font-size:11px;color:#888;" onclick="openQualityMetrics()">📊 Details</span></h3>
+        <div id="qualitySummary" style="font-size:11px; color:#888; padding:4px 0;">Click Details to analyze</div>
+      </div>
+      <div class="panel-section">
+        <h3>Shortcuts <span style="float:right;cursor:pointer;font-size:11px;color:#888;" onclick="openModal('shortcutsModal')">? Full list</span></h3>
         <div class="shortcuts">
           <kbd>B</kbd> Draw &nbsp; <kbd>V</kbd> Select &nbsp; <kbd>F</kbd> Fit<br>
           <kbd>A</kbd>/<kbd>D</kbd> Prev/Next &nbsp; <kbd>Del</kbd> Delete<br>
-          <kbd>Ctrl+S</kbd> Save &nbsp; <kbd>Ctrl+Z</kbd> Undo
+          <kbd>Ctrl+S</kbd> Save &nbsp; <kbd>Ctrl+Z</kbd> Undo<br>
+          <kbd>?</kbd> All shortcuts &nbsp; <kbd>I</kbd> Dashboard<br>
+          <kbd>P</kbd> Inference &nbsp; <kbd>Q</kbd> Quality &nbsp; <kbd>M</kbd> Batch
         </div>
       </div>
       <div class="export-section">
-        <h3 style="font-size:12px; color:#e94560; margin-bottom:6px;">Export to Training</h3>
-        <label>Train/Valid split: <span id="splitValue">80</span>%</label>
-        <input type="range" id="splitSlider" min="50" max="95" value="80">
-        <button class="export-btn" id="exportBtn">📦 Export Dataset</button>
+        <button class="export-btn" onclick="openSaveExportModal()">💾 Save & Export</button>
       </div>
     </div>
   </div>
@@ -655,16 +788,62 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
   </div>
 </div>
 
-<!-- Save Folder Modal -->
-<div class="modal-overlay" id="saveFolderModal">
-  <div class="modal">
-    <h2>💾 Save / Export Folder</h2>
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal" style="min-width:400px; max-width:500px;">
+    <h2>⚙ Settings</h2>
+    <div class="panel-section" style="border:none; padding:0;">
+      <h3 style="font-size:12px; color:#e94560; margin-bottom:8px;">Room</h3>
+      <div style="font-size:12px; color:#ccc; margin-bottom:8px;">
+        <div>Name: <span id="settingsRoomName" style="color:#e0e0e0; font-weight:bold;"></span></div>
+        <div>Code: <span id="settingsRoomCode" style="color:#e94560; font-family:monospace;"></span></div>
+      </div>
+      <div style="border-top:1px solid #0f3460; padding-top:12px; margin-top:12px;">
+        <h3 style="font-size:12px; color:#e94560; margin-bottom:8px;">Danger Zone</h3>
+        <button class="btn" style="background:#4a0f0f; color:#e94560; border-color:#e94560; width:100%;" onclick="confirmDeleteRoom()">🗑 Delete Room</button>
+        <p style="font-size:10px; color:#666; margin-top:4px;">Only the room creator can delete a room. This cannot be undone.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('settingsModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Room Confirmation Modal -->
+<div class="modal-overlay" id="deleteRoomModal">
+  <div class="modal" style="min-width:380px; max-width:440px; text-align:center;">
+    <h2 style="color:#e94560;">🗑 Delete Room</h2>
+    <p style="font-size:13px; color:#ccc; margin:12px 0;">Are you sure you want to <strong style="color:#e94560;">permanently delete</strong> this room?</p>
+    <p style="font-size:12px; color:#888; margin-bottom:8px;">All annotations, assignments, and chat messages will be lost.</p>
+    <p style="font-size:12px; color:#888; margin-bottom:16px;">Type the room name to confirm:</p>
+    <input type="text" id="deleteRoomConfirmInput" placeholder="Room name" style="width:100%; padding:8px 10px; border:1px solid #e94560; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px; text-align:center; margin-bottom:12px;">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('deleteRoomModal')">Cancel</button>
+      <button class="btn" id="deleteRoomBtn" style="background:#4a0f0f; color:#e94560; border-color:#e94560;" onclick="executeDeleteRoom()">Delete Forever</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save & Export Modal -->
+<div class="modal-overlay" id="saveExportModal">
+  <div class="modal" style="min-width:500px; max-width:600px;">
+    <h2>💾 Save & Export</h2>
     <label>Export Directory</label>
     <input type="text" id="saveDirInput" placeholder="/path/to/export">
     <div class="folder-browser" id="saveDirBrowser"></div>
+    <label style="margin-top:12px;">Export Format</label>
+    <select id="exportFormatSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+      <option value="yolo">YOLO (txt labels + data.yaml)</option>
+      <option value="coco">COCO (JSON annotations)</option>
+      <option value="voc">Pascal VOC (XML annotations)</option>
+    </select>
+    <label style="margin-top:12px;">Train/Valid split: <span id="splitValue">80</span>%</label>
+    <input type="range" id="splitSlider" min="50" max="95" value="80" oninput="document.getElementById('splitValue').textContent=this.value">
     <div class="modal-actions">
-      <button class="btn" onclick="closeModal('saveFolderModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitSaveFolder()">Set</button>
+      <button class="btn" onclick="closeModal('saveExportModal')">Cancel</button>
+      <button class="btn" onclick="submitSaveFolder()">Set Path Only</button>
+      <button class="btn btn-primary" id="exportBtn" onclick="exportDataset()">📦 Export</button>
     </div>
   </div>
 </div>
@@ -679,6 +858,130 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('classEditorModal')">Cancel</button>
       <button class="btn btn-primary" onclick="submitClasses()">Save Classes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shortcuts Modal -->
+<div class="modal-overlay" id="shortcutsModal">
+  <div class="modal shortcuts-modal">
+    <h2>⌨️ Keyboard Shortcuts</h2>
+    <div class="shortcut-grid">
+      <div class="shortcut-section">Navigation</div>
+      <div class="shortcut-row"><kbd>A</kbd> / <kbd>←</kbd> <span>Previous image</span></div>
+      <div class="shortcut-row"><kbd>D</kbd> / <kbd>→</kbd> <span>Next image</span></div>
+      <div class="shortcut-row"><kbd>W</kbd> <span>Previous page</span></div>
+      <div class="shortcut-row"><kbd>S</kbd> <span>Next page (when not in input)</span></div>
+      <div class="shortcut-section">Annotation</div>
+      <div class="shortcut-row"><kbd>B</kbd> <span>Draw mode</span></div>
+      <div class="shortcut-row"><kbd>V</kbd> <span>Select mode</span></div>
+      <div class="shortcut-row"><kbd>F</kbd> <span>Fit image to screen</span></div>
+      <div class="shortcut-row"><kbd>Del</kbd> <span>Delete selected box</span></div>
+      <div class="shortcut-row"><kbd>Ctrl+S</kbd> <span>Save labels</span></div>
+      <div class="shortcut-row"><kbd>Ctrl+Z</kbd> <span>Undo last action</span></div>
+      <div class="shortcut-section">Panels</div>
+      <div class="shortcut-row"><kbd>?</kbd> <span>Show this help</span></div>
+      <div class="shortcut-row"><kbd>C</kbd> <span>Toggle chat panel</span></div>
+      <div class="shortcut-row"><kbd>I</kbd> <span>Open dashboard</span></div>
+      <div class="shortcut-row"><kbd>P</kbd> <span>Toggle inference toolbar</span></div>
+      <div class="shortcut-row"><kbd>Q</kbd> <span>Quality metrics</span></div>
+      <div class="shortcut-row"><kbd>M</kbd> <span>Toggle batch/multi-select</span></div>
+      <div class="shortcut-row"><kbd>1-9</kbd> <span>Select class by number</span></div>
+      <div class="shortcut-row"><kbd>Esc</kbd> <span>Close modal / deselect</span></div>
+      <div class="shortcut-row"><kbd>E</kbd> <span>Quick export dataset</span></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeModal('shortcutsModal')">Got it!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard Modal -->
+<div class="modal-overlay" id="dashboardModal">
+  <div class="modal dashboard-modal">
+    <h2>📊 Dashboard</h2>
+    <div class="dash-grid" id="dashCards"></div>
+    <h3 style="font-size:12px; color:#e94560; margin:8px 0;">Class Distribution</h3>
+    <div id="dashClassDist"></div>
+    <h3 style="font-size:12px; color:#e94560; margin:12px 0;">Member Contributions</h3>
+    <div id="dashMemberStats" class="dash-member-stats"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('dashboardModal')">Close</button>
+      <button class="btn btn-primary" onclick="refreshDashboard()">🔄 Refresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dataset Split Modal -->
+<div class="modal-overlay" id="splitModal">
+  <div class="modal">
+    <h2>📂 Dataset Split</h2>
+    <p style="font-size:12px; color:#888; margin-bottom:8px;">Split annotated images into train, validation, and test sets.</p>
+    <div style="margin:12px 0;">
+      <label>Train: <span id="splitTrainVal">70</span>%</label>
+      <input type="range" id="splitTrainSlider" min="50" max="90" value="70" oninput="updateSplitPreview()">
+      <label>Val: <span id="splitValVal">20</span>%</label>
+      <input type="range" id="splitValSlider" min="5" max="40" value="20" oninput="updateSplitPreview()">
+      <label>Test: <span id="splitTestVal">10</span>%</label>
+    </div>
+    <div class="split-preview" id="splitPreview"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('splitModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="executeSplit()">📦 Export Split</button>
+    </div>
+  </div>
+</div>
+
+<!-- Notification popup -->
+<div class="notif-popup" id="notifPopup">
+  <div class="notif-title" id="notifTitle"></div>
+  <div class="notif-body" id="notifBody"></div>
+</div>
+
+<!-- Quality Metrics Modal -->
+<div class="modal-overlay" id="qualityModal">
+  <div class="modal" style="max-width:520px;">
+    <h2>📊 Annotation Quality Metrics</h2>
+    <div class="quality-panel" id="qualityContent">
+      <p style="color:#888;">Loading...</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('qualityModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Reassign Class Modal -->
+<div class="modal-overlay" id="batchReassignModal">
+  <div class="modal" style="max-width:360px;">
+    <h2>🔄 Reassign Class</h2>
+    <p style="font-size:12px; color:#888;">Change class ID for selected images.</p>
+    <div style="margin:12px 0; display:flex; gap:8px; align-items:center;">
+      <label style="font-size:12px;">From:</label>
+      <select id="reassignFromClass" style="flex:1; padding:4px; background:#16213e; color:#ccc; border:1px solid #0f3460; border-radius:3px;"></select>
+      <label style="font-size:12px;">→ To:</label>
+      <select id="reassignToClass" style="flex:1; padding:4px; background:#16213e; color:#ccc; border:1px solid #0f3460; border-radius:3px;"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('batchReassignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="executeBatchReassign()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Assign Modal -->
+<div class="modal-overlay" id="batchAssignModal">
+  <div class="modal" style="max-width:360px;">
+    <h2>👤 Assign Images</h2>
+    <p style="font-size:12px; color:#888;">Assign selected images to a team member.</p>
+    <div style="margin:12px 0;">
+      <select id="batchAssignUser" style="width:100%; padding:6px; background:#16213e; color:#ccc; border:1px solid #0f3460; border-radius:4px;">
+        <option value="">Unassign</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('batchAssignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="executeBatchAssign()">Assign</button>
     </div>
   </div>
 </div>
@@ -732,6 +1035,7 @@ const PER_PAGE = 100;
 function initSocket() {
     if (socket) return;
     socket = io({ transports: ['websocket', 'polling'] });
+    requestNotifPermission();
 
     socket.on('connect', () => {
         console.log('[WS] Connected');
@@ -768,12 +1072,23 @@ function initSocket() {
 
     socket.on('user_joined', (data) => {
         showToast(data.display_name + ' joined the room');
+        showDesktopNotif('Member Joined', data.display_name + ' joined the room');
         refreshRoomMembers();
     });
 
     socket.on('user_left', (data) => {
         showToast(data.display_name + ' left the room');
+        showDesktopNotif('Member Left', data.display_name + ' left the room');
         refreshRoomMembers();
+    });
+
+    // Remote cursor tracking
+    socket.on('cursor_update', (data) => {
+        if (!currentImageName || data.image_name !== currentImageName) {
+            removeRemoteCursor(data.user_id);
+            return;
+        }
+        updateRemoteCursor(data);
     });
 
     // Online users update
@@ -825,8 +1140,15 @@ function initSocket() {
         if (data.session_id === _activeSessionId) {
             const el = document.getElementById('sessionDetailProgress');
             if (el) el.textContent = 'Epoch ' + data.current_epoch + '/' + data.total_epochs + ' (' + data.percent + '%)';
+            updateTrainingChart(data);
         }
         refreshSessionList();
+    });
+
+    socket.on('train_metrics', (data) => {
+        if (data.session_id === _activeSessionId) {
+            updateTrainingChartVal(data);
+        }
     });
 
     socket.on('train_complete', (data) => {
@@ -834,7 +1156,10 @@ function initSocket() {
         if (data.session_id === _activeSessionId) {
             updateSessionDetailHeader(data.session_id);
         }
+        showDesktopNotif('Training Complete', 'Session ' + data.session_id.slice(0,8) + ' ' + (data.status || 'finished'));
     });
+
+
 }
 
 function joinSocketRoom(roomId) {
@@ -859,6 +1184,7 @@ async function refreshRoomMembers() {
     const data = await res.json();
     roomMembers = data.members || [];
     updateTopbar();
+    renderAssignMemberList();
 }
 
 // =============================================================================
@@ -1015,6 +1341,7 @@ async function enterRoom(roomId) {
     const infoData = await infoRes.json();
     roomMembers = infoData.members || [];
     updateTopbar();
+    renderAssignMemberList();
     loadImageEdits();
     // Show chat toggle
     document.getElementById('chatToggle').style.display = 'block';
@@ -1202,6 +1529,14 @@ async function viewSession(sessionId) {
                 logEl.appendChild(line);
             });
             logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // Render training chart
+        if (data.metrics_history && data.metrics_history.length) {
+            drawTrainingChart(data.metrics_history);
+        } else {
+            _metricsHistory = [];
+            document.getElementById('trainChartContainer').style.display = 'none';
         }
     } catch(e) {
         showToast('Failed to load session', true);
@@ -1674,6 +2009,706 @@ async function sendChatMessage() {
 }
 
 // =============================================================================
+// Dashboard
+// =============================================================================
+async function openDashboard() {
+    openModal('dashboardModal');
+    refreshDashboard();
+}
+
+async function refreshDashboard() {
+    // Stats
+    const statsRes = await fetch('/api/stats');
+    const stats = await statsRes.json();
+    const pct = stats.total_images > 0 ? Math.round(stats.annotated / stats.total_images * 100) : 0;
+    document.getElementById('dashCards').innerHTML =
+        '<div class="dash-card"><div class="dash-value">' + stats.total_images + '</div><div class="dash-label">Total Images</div></div>' +
+        '<div class="dash-card"><div class="dash-value">' + stats.annotated + '</div><div class="dash-label">Annotated</div></div>' +
+        '<div class="dash-card"><div class="dash-value">' + stats.total_bboxes + '</div><div class="dash-label">Total Boxes</div></div>' +
+        '<div class="dash-card"><div class="dash-value">' + pct + '%</div><div class="dash-label">Progress</div></div>';
+
+    // Class distribution
+    if (stats.class_distribution) {
+        const classNames = stats.class_names || [];
+        const maxCount = Math.max(...Object.values(stats.class_distribution), 1);
+        const colors = ['#e94560','#4caf50','#2196f3','#ff9800','#9c27b0','#00bcd4','#ff5722','#795548'];
+        let cdHtml = '';
+        for (const [classId, count] of Object.entries(stats.class_distribution)) {
+            const name = classNames[parseInt(classId)] || ('class_' + classId);
+            const pctBar = Math.round(count / maxCount * 100);
+            const color = colors[parseInt(classId) % colors.length];
+            cdHtml += '<div class="dash-class-bar"><span class="bar-label">' + escHtml(name) + '</span>' +
+                '<div class="bar"><div class="bar-fill" style="width:' + pctBar + '%;background:' + color + ';"></div></div>' +
+                '<span class="bar-count">' + count + '</span></div>';
+        }
+        document.getElementById('dashClassDist').innerHTML = cdHtml || '<div style="font-size:11px;color:#666;">No data</div>';
+    } else {
+        document.getElementById('dashClassDist').innerHTML = '<div style="font-size:11px;color:#666;">Export or annotate to see class distribution</div>';
+    }
+
+    // Member contributions
+    if (currentRoom) {
+        const editsRes = await fetch('/api/dashboard-stats?room_id=' + currentRoom.room_id);
+        const editsData = await editsRes.json();
+        if (editsData.member_stats) {
+            let mHtml = '';
+            for (const m of editsData.member_stats) {
+                mHtml += '<div class="dash-member-row">' +
+                    '<div class="dm-color" style="background:' + (m.color || '#888') + ';"></div>' +
+                    '<span class="dm-name">' + escHtml(m.display_name || m.username) + '</span>' +
+                    '<span class="dm-count">' + m.edit_count + ' edits</span>' +
+                    '</div>';
+            }
+            document.getElementById('dashMemberStats').innerHTML = mHtml || '<div style="font-size:11px;color:#666;">No edits yet</div>';
+        }
+    }
+}
+
+// =============================================================================
+// Sort & Filter
+// =============================================================================
+function changeSortOrder() {
+    const sort = document.getElementById('sortSelect').value;
+    loadImagePage(0, sort).then(() => { if (loadedImages.length > 0) selectImage(0); });
+}
+
+// =============================================================================
+// Dataset Split
+// =============================================================================
+function updateSplitPreview() {
+    const train = parseInt(document.getElementById('splitTrainSlider').value);
+    let val = parseInt(document.getElementById('splitValSlider').value);
+    const test = Math.max(0, 100 - train - val);
+    if (test < 0) { val = 100 - train; document.getElementById('splitValSlider').value = val; }
+    document.getElementById('splitTrainVal').textContent = train;
+    document.getElementById('splitValVal').textContent = val;
+    document.getElementById('splitTestVal').textContent = test;
+
+    const totalAnnotated = totalImages; // approximate
+    document.getElementById('splitPreview').innerHTML =
+        '<div class="split-card"><div class="split-name">Train</div><div class="split-count">~' + Math.round(totalAnnotated * train / 100) + '</div></div>' +
+        '<div class="split-card"><div class="split-name">Valid</div><div class="split-count">~' + Math.round(totalAnnotated * val / 100) + '</div></div>' +
+        '<div class="split-card"><div class="split-name">Test</div><div class="split-count">~' + Math.round(totalAnnotated * test / 100) + '</div></div>';
+}
+
+async function executeSplit() {
+    const train = parseInt(document.getElementById('splitTrainSlider').value) / 100;
+    const val = parseInt(document.getElementById('splitValSlider').value) / 100;
+    const test = Math.max(0, 1 - train - val);
+    const res = await fetch('/api/export', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ train_ratio: train, val_ratio: val, test_ratio: test }),
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    closeModal('splitModal');
+    showToast('Exported: ' + (data.train_count || 0) + ' train, ' + (data.valid_count || 0) + ' val' + (data.test_count ? ', ' + data.test_count + ' test' : ''));
+}
+
+// =============================================================================
+// Desktop Notifications
+// =============================================================================
+let _notifEnabled = false;
+
+function requestNotifPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(p => { _notifEnabled = (p === 'granted'); });
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+        _notifEnabled = true;
+    }
+}
+
+function showDesktopNotif(title, body) {
+    // In-app notification popup
+    const popup = document.getElementById('notifPopup');
+    document.getElementById('notifTitle').textContent = title;
+    document.getElementById('notifBody').textContent = body;
+    popup.classList.add('show');
+    setTimeout(() => popup.classList.remove('show'), 4000);
+
+    // Browser notification (if permitted and tab not focused)
+    if (_notifEnabled && document.hidden) {
+        try { new Notification(title, { body: body, icon: '🔔' }); } catch(e) {}
+    }
+}
+
+// =============================================================================
+// Remote Cursors
+// =============================================================================
+let _remoteCursors = {}; // user_id -> DOM element
+let _cursorThrottleTimer = null;
+
+function emitCursorThrottled(nx, ny) {
+    if (_cursorThrottleTimer) return;
+    _cursorThrottleTimer = setTimeout(() => { _cursorThrottleTimer = null; }, 50); // 20fps
+    if (socket && currentImageName) {
+        socket.emit('cursor_move', { x: nx, y: ny, image_name: currentImageName });
+    }
+}
+
+function updateRemoteCursor(data) {
+    const container = document.getElementById('canvasContainer');
+    if (!container || !imgLoaded) return;
+
+    let el = _remoteCursors[data.user_id];
+    if (!el) {
+        el = document.createElement('div');
+        el.className = 'remote-cursor';
+        el.innerHTML = '<div class="cursor-arrow" style="color:' + (data.color || '#888') + ';"></div>' +
+            '<div class="cursor-label" style="background:' + (data.color || '#888') + ';">' + escHtml(data.display_name || data.username) + '</div>';
+        container.appendChild(el);
+        _remoteCursors[data.user_id] = el;
+    }
+
+    // Convert normalized coords to canvas pixel coords
+    const px = offsetX + data.x * imgW * scale;
+    const py = offsetY + data.y * imgH * scale;
+    el.style.left = px + 'px';
+    el.style.top = py + 'px';
+
+    // Auto-remove after 5s of inactivity
+    clearTimeout(el._timeout);
+    el._timeout = setTimeout(() => removeRemoteCursor(data.user_id), 5000);
+}
+
+function removeRemoteCursor(userId) {
+    const el = _remoteCursors[userId];
+    if (el) {
+        el.remove();
+        delete _remoteCursors[userId];
+    }
+}
+
+function clearAllRemoteCursors() {
+    for (const uid of Object.keys(_remoteCursors)) removeRemoteCursor(uid);
+}
+
+// =============================================================================
+// Training Progress Chart
+// =============================================================================
+let _metricsHistory = [];
+
+function drawTrainingChart(history) {
+    _metricsHistory = history || _metricsHistory;
+    const container = document.getElementById('trainChartContainer');
+    const canvas = document.getElementById('trainChartCanvas');
+    if (!canvas || !_metricsHistory.length) { if(container) container.style.display = 'none'; return; }
+    container.style.display = 'block';
+    const ctx = canvas.getContext('2d');
+    const rect = container.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    const W = canvas.width, H = canvas.height;
+    const pad = { top: 20, right: 12, bottom: 30, left: 45 };
+    const plotW = W - pad.left - pad.right;
+    const plotH = H - pad.top - pad.bottom;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Determine which series to plot
+    const series = [
+        { key: 'box_loss', color: '#e94560', label: 'Box Loss' },
+        { key: 'cls_loss', color: '#4caf50', label: 'Cls Loss' },
+        { key: 'dfl_loss', color: '#2196f3', label: 'DFL Loss' },
+        { key: 'val_mAP50', color: '#ff9800', label: 'mAP50' },
+        { key: 'val_mAP50_95', color: '#9c27b0', label: 'mAP50-95' },
+    ];
+
+    // Find available series
+    const available = series.filter(s => _metricsHistory.some(m => m[s.key] !== undefined));
+    if (!available.length) { container.style.display = 'none'; return; }
+
+    // Find global y range
+    let yMin = Infinity, yMax = -Infinity;
+    for (const entry of _metricsHistory) {
+        for (const s of available) {
+            if (entry[s.key] !== undefined) {
+                yMin = Math.min(yMin, entry[s.key]);
+                yMax = Math.max(yMax, entry[s.key]);
+            }
+        }
+    }
+    if (yMin === yMax) { yMax = yMin + 1; }
+    const yRange = yMax - yMin;
+    yMin -= yRange * 0.05;
+    yMax += yRange * 0.05;
+
+    const epochs = _metricsHistory.map(m => m.epoch);
+    const xMin = Math.min(...epochs), xMax = Math.max(...epochs);
+    const xRange = Math.max(xMax - xMin, 1);
+
+    // Grid lines
+    ctx.strokeStyle = '#0f3460';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 4; i++) {
+        const y = pad.top + (plotH * i / 4);
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+        const val = yMax - (yMax - yMin) * (i / 4);
+        ctx.fillStyle = '#666';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(val.toFixed(3), pad.left - 4, y + 3);
+    }
+    // X axis labels
+    ctx.textAlign = 'center';
+    const step = Math.max(1, Math.floor(xRange / 5));
+    for (let e = xMin; e <= xMax; e += step) {
+        const x = pad.left + ((e - xMin) / xRange) * plotW;
+        ctx.fillText(e.toString(), x, H - pad.bottom + 14);
+    }
+    ctx.fillText('Epoch', W / 2, H - 4);
+
+    // Plot each series
+    for (const s of available) {
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        let first = true;
+        for (const entry of _metricsHistory) {
+            if (entry[s.key] === undefined) continue;
+            const x = pad.left + ((entry.epoch - xMin) / xRange) * plotW;
+            const y = pad.top + ((yMax - entry[s.key]) / (yMax - yMin)) * plotH;
+            if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+
+    // Legend
+    let lx = pad.left + 4;
+    for (const s of available) {
+        ctx.fillStyle = s.color;
+        ctx.fillRect(lx, pad.top - 14, 12, 8);
+        ctx.fillStyle = '#ccc';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(s.label, lx + 15, pad.top - 7);
+        lx += ctx.measureText(s.label).width + 24;
+    }
+}
+
+function updateTrainingChart(data) {
+    if (!_metricsHistory.length) return;
+    // Append new metrics from progress event
+    const epoch = data.current_epoch;
+    if (epoch && !_metricsHistory.find(m => m.epoch === epoch)) {
+        const entry = { epoch };
+        if (data.box_loss !== undefined) entry.box_loss = data.box_loss;
+        if (data.cls_loss !== undefined) entry.cls_loss = data.cls_loss;
+        if (data.dfl_loss !== undefined) entry.dfl_loss = data.dfl_loss;
+        _metricsHistory.push(entry);
+        drawTrainingChart();
+    }
+}
+
+function updateTrainingChartVal(data) {
+    // Append validation metrics to last entry
+    if (_metricsHistory.length) {
+        const last = _metricsHistory[_metricsHistory.length - 1];
+        if (data.val_mAP50 !== undefined) last.val_mAP50 = data.val_mAP50;
+        if (data.val_mAP50_95 !== undefined) last.val_mAP50_95 = data.val_mAP50_95;
+        if (data.val_precision !== undefined) last.val_precision = data.val_precision;
+        if (data.val_recall !== undefined) last.val_recall = data.val_recall;
+        drawTrainingChart();
+    }
+}
+
+// =============================================================================
+// Batch Operations
+// =============================================================================
+let batchMode = false;
+let batchSelected = new Set();
+let _assignments = {};
+
+function toggleBatchMode() {
+    batchMode = !batchMode;
+    batchSelected.clear();
+    document.querySelector('.sidebar').classList.toggle('batch-mode', batchMode);
+    document.getElementById('batchToolbar').classList.toggle('show', batchMode);
+    updateBatchCount();
+    renderImageList();
+}
+
+function toggleBatchImage(name, event) {
+    if (event) event.stopPropagation();
+    if (batchSelected.has(name)) batchSelected.delete(name);
+    else batchSelected.add(name);
+    updateBatchCount();
+    renderImageList();
+}
+
+function batchSelectAll() {
+    loadedImages.forEach(img => batchSelected.add(img.name));
+    updateBatchCount();
+    renderImageList();
+}
+
+function batchSelectNone() {
+    batchSelected.clear();
+    updateBatchCount();
+    renderImageList();
+}
+
+function updateBatchCount() {
+    document.getElementById('batchCount').textContent = batchSelected.size;
+}
+
+async function batchDeleteLabels() {
+    if (!batchSelected.size) return showToast('No images selected', true);
+    if (!confirm('Delete labels for ' + batchSelected.size + ' images?')) return;
+    const res = await fetch('/api/batch/delete-labels', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ image_names: Array.from(batchSelected) })
+    });
+    const data = await res.json();
+    if (data.error) return showToast(data.error, true);
+    showToast('Deleted labels for ' + data.deleted + ' images');
+    batchSelected.clear(); updateBatchCount();
+    loadImagePage(currentPage); updateStats();
+}
+
+function openBatchReassign() {
+    if (!batchSelected.size) return showToast('No images selected', true);
+    const sel = document.getElementById('classSelect');
+    const opts = Array.from(sel.options).map(o => '<option value="' + o.value + '">' + o.textContent + '</option>').join('');
+    document.getElementById('reassignFromClass').innerHTML = opts;
+    document.getElementById('reassignToClass').innerHTML = opts;
+    openModal('batchReassignModal');
+}
+
+async function executeBatchReassign() {
+    const from = document.getElementById('reassignFromClass').value;
+    const to = document.getElementById('reassignToClass').value;
+    const res = await fetch('/api/batch/reassign-class', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ image_names: Array.from(batchSelected), from_class: parseInt(from), to_class: parseInt(to) })
+    });
+    const data = await res.json();
+    if (data.error) return showToast(data.error, true);
+    showToast('Modified ' + data.modified + ' images');
+    closeModal('batchReassignModal');
+    loadImagePage(currentPage);
+}
+
+function openBatchAssign() {
+    if (!batchSelected.size) return showToast('No images selected', true);
+    const sel = document.getElementById('batchAssignUser');
+    sel.innerHTML = '<option value="">Unassign</option>';
+    roomMembers.forEach(m => {
+        const uid = m.user_id || m.id;
+        const name = m.display_name || m.username;
+        sel.innerHTML += '<option value="' + uid + '">' + escHtml(name) + '</option>';
+    });
+    openModal('batchAssignModal');
+}
+
+async function executeBatchAssign() {
+    if (!currentRoom) return;
+    const userId = document.getElementById('batchAssignUser').value || null;
+    const res = await fetch('/api/assignments/' + currentRoom.room_id, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ image_names: Array.from(batchSelected), user_id: userId ? parseInt(userId) : null })
+    });
+    const data = await res.json();
+    if (data.error) return showToast(data.error, true);
+    showToast('Assigned ' + data.count + ' images');
+    closeModal('batchAssignModal');
+    batchSelected.clear(); updateBatchCount();
+    loadAssignments(); renderImageList();
+}
+
+
+
+// =============================================================================
+// Image Assignments
+// =============================================================================
+
+async function loadAssignments() {
+    if (!currentRoom) return;
+    try {
+        const res = await fetch('/api/assignments/' + currentRoom.room_id);
+        const data = await res.json();
+        _assignments = data.assignments || {};
+    } catch(e) { _assignments = {}; }
+    renderAssignMemberList();
+    updateAssigneeBadge();
+}
+
+function renderAssignMemberList() {
+    const container = document.getElementById('assignMemberList');
+    if (!roomMembers.length) { container.innerHTML = '<div style="color:#666; padding:4px;">No members</div>'; return; }
+    // Count assigned images per member
+    const counts = {};
+    Object.values(_assignments).forEach(a => { counts[a.user_id] = (counts[a.user_id] || 0) + 1; });
+    container.innerHTML = roomMembers.map(m => {
+        const uid = m.user_id || m.id;
+        const name = m.display_name || m.username;
+        const color = m.color || '#888';
+        const assignedCount = counts[uid] || 0;
+        const pct = totalImages > 0 ? Math.round(assignedCount / totalImages * 100) : 0;
+        return '<div style="padding:4px 0; border-bottom:1px solid #0f3460;">' +
+            '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">' +
+            '<span style="color:' + color + '; font-weight:bold;">' + escHtml(name) + '</span>' +
+            '<span style="color:#888; font-size:10px;">' + assignedCount + '/' + totalImages + ' (' + pct + '%)</span>' +
+            '</div>' +
+            '<div style="display:flex; gap:4px; align-items:center;">' +
+            '<input type="range" min="0" max="100" value="' + pct + '" ' +
+            'data-uid="' + uid + '" class="assign-ratio-slider" ' +
+            'style="flex:1; height:4px; accent-color:' + color + ';" ' +
+            'oninput="updateAssignRatioLabel(this)">' +
+            '<span class="assign-ratio-label" data-uid="' + uid + '" style="min-width:32px; text-align:right; color:#ccc; font-size:10px;">' + pct + '%</span>' +
+            '</div></div>';
+    }).join('');
+}
+
+function updateAssignRatioLabel(slider) {
+    const uid = slider.dataset.uid;
+    const label = document.querySelector('.assign-ratio-label[data-uid="' + uid + '"]');
+    if (label) label.textContent = slider.value + '%';
+    // Enforce total = 100%: adjust other sliders
+    const allSliders = Array.from(document.querySelectorAll('.assign-ratio-slider'));
+    const otherSliders = allSliders.filter(s => s.dataset.uid !== uid);
+    const used = parseInt(slider.value);
+    const remaining = 100 - used;
+    // Set max on other sliders and proportionally adjust
+    const otherTotal = otherSliders.reduce((s, sl) => s + parseInt(sl.value), 0);
+    if (otherTotal > remaining) {
+        // Scale down others proportionally
+        otherSliders.forEach(s => {
+            const ratio = otherTotal > 0 ? parseInt(s.value) / otherTotal : 1 / otherSliders.length;
+            const newVal = Math.round(remaining * ratio);
+            s.value = newVal;
+            s.max = remaining;
+            const lbl = document.querySelector('.assign-ratio-label[data-uid="' + s.dataset.uid + '"]');
+            if (lbl) lbl.textContent = newVal + '%';
+        });
+    } else {
+        otherSliders.forEach(s => {
+            const othersExceptThis = otherSliders.filter(os => os !== s).reduce((sum, os) => sum + parseInt(os.value), 0);
+            s.max = 100 - used - othersExceptThis;
+            const lbl = document.querySelector('.assign-ratio-label[data-uid="' + s.dataset.uid + '"]');
+            if (lbl) lbl.textContent = s.value + '%';
+        });
+    }
+}
+
+async function distributeAssignments() {
+    if (!currentRoom || !roomMembers.length) return;
+    const sliders = document.querySelectorAll('.assign-ratio-slider');
+    const ratios = [];
+    sliders.forEach(s => {
+        ratios.push({ user_id: parseInt(s.dataset.uid), pct: parseInt(s.value) });
+    });
+    const totalPct = ratios.reduce((sum, r) => sum + r.pct, 0);
+    if (totalPct === 0) { showToast('Set at least one member ratio > 0%', true); return; }
+    const res = await fetch('/api/assignments/' + currentRoom.room_id + '/distribute', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ ratios: ratios })
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    showToast('Distributed ' + data.total + ' images (' + data.assigned + ' assigned)');
+    loadAssignments();
+}
+
+function updateAssigneeBadge() {
+    const badge = document.getElementById('assigneeBadge');
+    if (currentImageName && _assignments[currentImageName]) {
+        const a = _assignments[currentImageName];
+        badge.textContent = '→ ' + (a.display_name || a.username);
+        badge.style.color = a.color || '#888';
+    } else {
+        badge.textContent = '';
+    }
+}
+
+// =============================================================================
+// Quality Metrics
+// =============================================================================
+
+async function openQualityMetrics() {
+    openModal('qualityModal');
+    document.getElementById('qualityContent').innerHTML = '<p style="color:#888;">Analyzing...</p>';
+    const res = await fetch('/api/quality-metrics');
+    const data = await res.json();
+    if (data.error) { document.getElementById('qualityContent').innerHTML = '<p style="color:#e94560;">Error: ' + escHtml(data.error) + '</p>'; return; }
+
+    const coverage = data.annotation_coverage || 0;
+    const balance = data.class_balance_score || 0;
+    const scoreClass = balance >= 0.8 ? 'good' : balance >= 0.5 ? 'ok' : 'bad';
+
+    let html = '<div class="quality-score ' + scoreClass + '">Balance Score: ' + (balance * 100).toFixed(0) + '%</div>';
+    html += '<div class="quality-bar"><div class="fill" style="width:' + coverage + '%; background:#4caf50;"></div></div>';
+    html += '<div style="text-align:center; font-size:10px; color:#888; margin-bottom:8px;">Coverage: ' + coverage + '%</div>';
+    html += '<div class="quality-row"><span class="label">Total Images</span><span class="value">' + data.total_images + '</span></div>';
+    html += '<div class="quality-row"><span class="label">Annotated</span><span class="value">' + data.annotated_images + '</span></div>';
+    html += '<div class="quality-row"><span class="label">Unannotated</span><span class="value">' + data.unannotated_images + '</span></div>';
+    html += '<div class="quality-row"><span class="label">Total Boxes</span><span class="value">' + data.total_boxes + '</span></div>';
+    html += '<div class="quality-row"><span class="label">Avg Boxes/Image</span><span class="value">' + data.avg_boxes_per_image + '</span></div>';
+    html += '<div class="quality-row"><span class="label">Max Boxes</span><span class="value">' + data.max_boxes + '</span></div>';
+    html += '<div class="quality-row"><span class="label">Tiny Boxes (&lt;0.1%)</span><span class="value">' + data.tiny_boxes + '</span></div>';
+    html += '<div class="quality-row"><span class="label">Huge Boxes (&gt;50%)</span><span class="value">' + data.huge_boxes + '</span></div>';
+
+    // Class distribution
+    const classDist = data.class_distribution || {};
+    if (Object.keys(classDist).length) {
+        html += '<h4 style="margin:12px 0 6px; font-size:11px; color:#e94560;">Class Distribution</h4>';
+        const maxCount = Math.max(...Object.values(classDist));
+        for (const [cls, count] of Object.entries(classDist)) {
+            const pct = Math.round(count / maxCount * 100);
+            html += '<div style="margin:3px 0;">';
+            html += '<span style="color:#888; font-size:10px;">Class ' + cls + ': ' + count + '</span>';
+            html += '<div class="quality-bar"><div class="fill" style="width:' + pct + '%; background:#2196f3;"></div></div>';
+            html += '</div>';
+        }
+    }
+
+    document.getElementById('qualityContent').innerHTML = html;
+    // Also set summary in right panel
+    document.getElementById('qualitySummary').innerHTML = '📊 ' + data.annotated_images + '/' + data.total_images + ' annotated · ' + data.total_boxes + ' boxes · Balance: ' + (balance * 100).toFixed(0) + '%';
+}
+
+// =============================================================================
+// Model Inference Preview
+// =============================================================================
+let _inferenceDetections = [];
+let _modelNames = {};  // model class_id -> name from last inference
+
+async function loadInferenceModels() {
+    try {
+        const res = await fetch('/api/inference/models');
+        const data = await res.json();
+        const sel = document.getElementById('inferenceModelSelect');
+        sel.innerHTML = '<option value="">Select model...</option>';
+        (data.models || []).forEach(m => {
+            sel.innerHTML += '<option value="' + escHtml(m.path) + '">' + escHtml(m.name) + ' (' + m.size_mb + 'MB)</option>';
+        });
+    } catch(e) {}
+}
+
+async function runInference() {
+    const modelPath = document.getElementById('inferenceModelSelect').value;
+    if (!modelPath) return showToast('Select a model first', true);
+    if (!currentImageName) return showToast('No image selected', true);
+    const conf = parseInt(document.getElementById('inferenceConfSlider').value) / 100;
+    showToast('Running inference...');
+    try {
+        const res = await fetch('/api/inference/predict', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ model_path: modelPath, image_name: currentImageName, confidence: conf })
+        });
+        const data = await res.json();
+        if (data.error) return showToast(data.error, true);
+        _inferenceDetections = data.detections || [];
+        _modelNames = data.model_names || {};
+        showToast('Found ' + data.count + ' detections');
+        draw(); // Redraw to show inference overlays
+    } catch(e) {
+        showToast('Inference failed', true);
+    }
+}
+
+function clearInference() {
+    _inferenceDetections = [];
+    draw();
+}
+
+function acceptInference() {
+    if (!_inferenceDetections.length) return showToast('No detections to accept', true);
+    pushUndo();
+    const sel = document.getElementById('classSelect');
+    const existingClasses = Array.from(sel.options).map(o => o.textContent.replace(/^\d+:\s*/, ''));
+    // Build mapping: model_class_id -> room_class_id
+    // Existing room class IDs keep their mapping, new ones get next available ID
+    const classMap = {};
+    const uniqueModelIds = [...new Set(_inferenceDetections.map(d => d.class_id))].sort((a, b) => a - b);
+    for (const modelId of uniqueModelIds) {
+        if (modelId < existingClasses.length) {
+            // Already exists in room class list — keep as-is
+            classMap[modelId] = modelId;
+        } else {
+            // New class — assign next available room class ID
+            const modelName = _modelNames[String(modelId)] || ('class_' + modelId);
+            const nextId = existingClasses.length;
+            existingClasses.push(modelName);
+            classMap[modelId] = nextId;
+        }
+    }
+    const addedCount = existingClasses.length - sel.options.length;
+    if (addedCount > 0) {
+        sel.innerHTML = existingClasses.map((name, i) => '<option value="' + i + '">' + i + ': ' + escHtml(name) + '</option>').join('');
+        if (currentRoom) {
+            fetch('/api/rooms/' + currentRoom.room_id + '/classes', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ classes: existingClasses })
+            });
+        }
+        showToast('Added ' + addedCount + ' new classes from model');
+    }
+    const count = _inferenceDetections.length;
+    for (const det of _inferenceDetections) {
+        currentLabels.push({
+            class_id: classMap[det.class_id] !== undefined ? classMap[det.class_id] : det.class_id,
+            cx: det.cx, cy: det.cy,
+            w: det.w, h: det.h,
+        });
+    }
+    hasUnsavedChanges = true;
+    _inferenceDetections = [];
+    renderBboxList();
+    draw();
+    showToast('Accepted ' + count + ' detections as labels');
+}
+
+function drawInferenceOverlays() {
+    if (!_inferenceDetections.length || !imgLoaded) return;
+    const classSelect = document.getElementById('classSelect');
+    for (const det of _inferenceDetections) {
+        const x = offsetX + (det.cx - det.w / 2) * imgW * scale;
+        const y = offsetY + (det.cy - det.h / 2) * imgH * scale;
+        const w = det.w * imgW * scale;
+        const h = det.h * imgH * scale;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(0,255,136,0.7)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+        ctx.setLineDash([]);
+        const className = det.class_name || _modelNames[String(det.class_id)] || classSelect.options[det.class_id]?.textContent || ('cls' + det.class_id);
+        const label = className + ' ' + (det.confidence * 100).toFixed(0) + '%';
+        ctx.font = '10px sans-serif';
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = 'rgba(0,255,136,0.8)';
+        ctx.fillRect(x, y - 14, tw + 6, 14);
+        ctx.fillStyle = '#000';
+        ctx.fillText(label, x + 3, y - 3);
+    }
+}
+
+// =============================================================================
+// Render Image List
+// =============================================================================
+function renderImageList() {
+    const list = document.getElementById('imageList');
+    if (!loadedImages || !loadedImages.length) { list.innerHTML = '<div style="padding:16px; color:#666; font-size:12px;">No images</div>'; return; }
+    list.innerHTML = loadedImages.map((img, idx) => {
+        const isSelected = idx === currentGlobalIndex;
+        const boxCount = img.bbox_count || 0;
+        const dotClass = img.annotated ? 'annotated' : 'empty';
+        const globalNum = img.global_index || (idx + 1);
+        const assign = _assignments[img.name];
+        let cls = 'image-item' + (isSelected ? ' active' : '');
+        let html = '<div class="' + cls + '" onclick="' + (batchMode ? 'toggleBatchImage(\'' + escHtml(img.name) + '\', event)' : 'selectImage(' + idx + ')') + '" title="' + escHtml(img.name) + '">';
+        html += '<span class="item-number">' + globalNum + '</span>';
+        if (assign) html += '<span style="width:6px;height:6px;border-radius:50%;background:' + (assign.color || '#888') + ';flex-shrink:0;"></span>';
+        html += '<span class="dot ' + dotClass + '"></span>';
+        html += '<span class="name">' + escHtml(img.name) + '</span>';
+        html += '<span class="box-count">' + boxCount + '</span>';
+        html += '</div>';
+        return html;
+    }).join('');
+}
+
+// =============================================================================
 // Annotator Init
 // =============================================================================
 function initAnnotator() {
@@ -1689,13 +2724,17 @@ function initAnnotator() {
         loadImagePage(0).then(() => { if (loadedImages.length > 0) selectImage(0); });
     }
     updateStats();
+    loadAssignments();
+    loadInferenceModels();
 }
 
 // =============================================================================
 // API
 // =============================================================================
-async function loadImagePage(page) {
-    const params = new URLSearchParams({ page, per_page: PER_PAGE, filter: currentFilter, search: currentSearch });
+async function loadImagePage(page, sortOverride) {
+    const sort = sortOverride || (document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'name-asc');
+    const params = new URLSearchParams({ page, per_page: PER_PAGE, filter: currentFilter, search: currentSearch, sort: sort });
+    if (currentRoom && currentRoom.room_id) params.set('room_id', currentRoom.room_id);
     const res = await fetch('/api/images?' + params);
     const data = await res.json();
     loadedImages = data.images;
@@ -1755,11 +2794,60 @@ async function exportDataset() {
     const btn = document.getElementById('exportBtn');
     btn.disabled = true; btn.textContent = 'Exporting...';
     const ratio = parseInt(document.getElementById('splitSlider').value) / 100;
-    const res = await fetch('/api/export', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ train_ratio: ratio }) });
+    const format = document.getElementById('exportFormatSelect').value;
+    const exportPath = document.getElementById('saveDirInput').value.trim();
+    const body = { train_ratio: ratio, format: format };
+    if (exportPath) body.export_path = exportPath;
+    const res = await fetch('/api/export', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
     const data = await res.json();
-    btn.disabled = false; btn.textContent = '📦 Export Dataset';
-    if (data.status === 'exported') { showToast('Exported! Train: ' + data.train_count + ', Valid: ' + data.valid_count); }
+    btn.disabled = false; btn.textContent = '📦 Export';
+    if (data.status === 'exported') {
+        showToast('Exported (' + data.format + ')! Train: ' + data.train_count + ', Valid: ' + data.valid_count);
+        closeModal('saveExportModal');
+    }
     else { showToast('Export failed: ' + (data.error || 'unknown'), true); }
+}
+
+function openSaveExportModal() {
+    browseFolders(document.getElementById('saveDirInput').value || '', 'saveDirBrowser', 'saveDirInput');
+    openModal('saveExportModal');
+}
+
+function openSettingsModal() {
+    if (currentRoom) {
+        document.getElementById('settingsRoomName').textContent = currentRoom.name || '';
+        document.getElementById('settingsRoomCode').textContent = currentRoom.code || '';
+    }
+    openModal('settingsModal');
+}
+
+function confirmDeleteRoom() {
+    if (!currentRoom) return;
+    document.getElementById('deleteRoomConfirmInput').value = '';
+    openModal('deleteRoomModal');
+}
+
+async function executeDeleteRoom() {
+    if (!currentRoom) return;
+    const typed = document.getElementById('deleteRoomConfirmInput').value.trim();
+    if (typed !== currentRoom.name) {
+        showToast('Room name does not match', true);
+        return;
+    }
+    const btn = document.getElementById('deleteRoomBtn');
+    btn.disabled = true; btn.textContent = 'Deleting...';
+    try {
+        const res = await fetch('/api/rooms/' + currentRoom.room_id, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.error) { showToast(data.error, true); btn.disabled = false; btn.textContent = 'Delete Forever'; return; }
+        showToast('Room deleted');
+        closeModal('deleteRoomModal');
+        closeModal('settingsModal');
+        leaveRoom();
+    } catch(e) {
+        showToast('Failed to delete room', true);
+        btn.disabled = false; btn.textContent = 'Delete Forever';
+    }
 }
 
 // =============================================================================
@@ -1771,12 +2859,15 @@ function selectImage(index) {
     currentGlobalIndex = index;
     const item = loadedImages[index];
     currentImageName = item.name;
+    clearAllRemoteCursors();
+    clearInference();
     document.getElementById('imageInfo').textContent = item.name + ' (' + (currentPage * PER_PAGE + index + 1) + '/' + totalImages + ')';
     document.getElementById('blankPrompt').style.display = 'none';
     imgLoaded = false;
     img.onload = () => { imgLoaded = true; imgW = img.naturalWidth; imgH = img.naturalHeight; fitToScreen(); loadLabels(item.name); };
     img.src = '/api/image/' + encodeURIComponent(item.name);
     renderImageList();
+    updateAssigneeBadge();
     const el = document.querySelector('.image-item[data-index="' + index + '"]');
     if (el) el.scrollIntoView({ block: 'nearest' });
 }
@@ -1792,18 +2883,7 @@ function applyFilter(filter) {
 // =============================================================================
 // Render
 // =============================================================================
-function renderImageList() {
-    const list = document.getElementById('imageList');
-    list.innerHTML = loadedImages.map((im, i) => {
-        const edit = imageEdits[im.name];
-        const editDot = edit ? '<div class="user-edit-dot" style="background:' + edit.color + ';" title="' + escHtml(edit.display_name || edit.username) + '"></div>' : '';
-        return '<div class="image-item ' + (i === currentGlobalIndex ? 'active' : '') +
-            '" data-index="' + i + '" onclick="selectImage(' + i + ')">' +
-            '<div class="dot ' + (im.annotated ? 'annotated' : 'empty') + '"></div>' + editDot +
-            '<div class="name">' + escHtml(im.name) + '</div>' +
-            '<div class="count">' + im.bbox_count + '</div></div>';
-    }).join('');
-}
+// renderImageList is defined above in the Batch Operations section
 
 function updatePagination() {
     document.getElementById('pageInfo').textContent = (currentPage + 1) + ' / ' + Math.max(1, totalPages);
@@ -1811,6 +2891,18 @@ function updatePagination() {
     document.getElementById('pagePrev').disabled = currentPage <= 0;
     document.getElementById('pageNext').disabled = currentPage >= totalPages - 1;
     document.getElementById('pageLast').disabled = currentPage >= totalPages - 1;
+}
+
+function _getClassName(classId) {
+    const sel = document.getElementById('classSelect');
+    if (sel && sel.options[classId]) {
+        return sel.options[classId].textContent;
+    }
+    // Fallback to model names from last inference
+    if (_modelNames && _modelNames[String(classId)]) {
+        return classId + ': ' + _modelNames[String(classId)];
+    }
+    return classId + ': unknown';
 }
 
 function renderBboxList() {
@@ -1821,13 +2913,35 @@ function renderBboxList() {
     }
     list.innerHTML = currentLabels.map((lbl, i) => {
         const color = BBOX_COLORS[lbl.class_id % BBOX_COLORS.length];
+        const className = _getClassName(lbl.class_id);
         return '<div class="bbox-item ' + (i === selectedBoxIdx ? 'selected' : '') +
             '" onclick="selectBox(' + i + ')">' +
             '<div class="bbox-color" style="background:' + color + '"></div>' +
-            '<div class="bbox-info">Class ' + lbl.class_id + ' | ' +
-            (lbl.w * 100).toFixed(1) + '% × ' + (lbl.h * 100).toFixed(1) + '%</div>' +
+            '<span class="bbox-class-edit" ondblclick="event.stopPropagation();editBoxClass(' + i + ', this)" title="Double-click to change class">' + escHtml(className) + '</span>' +
+            '<div class="bbox-info">' + (lbl.w * 100).toFixed(1) + '% × ' + (lbl.h * 100).toFixed(1) + '%</div>' +
             '<div class="bbox-delete" onclick="event.stopPropagation();deleteBox(' + i + ')">✕</div></div>';
     }).join('');
+}
+
+function editBoxClass(idx, el) {
+    const lbl = currentLabels[idx];
+    if (!lbl) return;
+    const sel = document.getElementById('classSelect');
+    let html = '<select class="bbox-class-dropdown" onchange="applyBoxClass(' + idx + ', this.value)" onblur="renderBboxList()">';
+    for (let i = 0; i < sel.options.length; i++) {
+        html += '<option value="' + i + '"' + (i === lbl.class_id ? ' selected' : '') + '>' + escHtml(sel.options[i].textContent) + '</option>';
+    }
+    html += '</select>';
+    el.innerHTML = html;
+    el.querySelector('select').focus();
+}
+
+function applyBoxClass(idx, newClassId) {
+    pushUndo();
+    currentLabels[idx].class_id = parseInt(newClassId);
+    hasUnsavedChanges = true;
+    renderBboxList();
+    draw();
 }
 
 function selectBox(idx) { selectedBoxIdx = idx; renderBboxList(); draw(); }
@@ -1883,6 +2997,8 @@ function draw() {
         ctx.strokeRect(x1, y1, Math.abs(drawCurrent.x - drawStart.x), Math.abs(drawCurrent.y - drawStart.y));
         ctx.setLineDash([]);
     }
+    // Inference preview overlays
+    drawInferenceOverlays();
 }
 
 function drawHandles(x, y, w, h, color) {
@@ -1924,10 +3040,8 @@ function setupEvents() {
     document.getElementById('saveBtn').addEventListener('click', saveLabels);
     document.getElementById('undoBtn').addEventListener('click', undo);
     document.getElementById('zoomFit').addEventListener('click', fitToScreen);
-    document.getElementById('exportBtn').addEventListener('click', exportDataset);
     document.getElementById('drawTool').addEventListener('click', () => setMode('draw'));
     document.getElementById('selectTool').addEventListener('click', () => setMode('select'));
-    document.getElementById('splitSlider').addEventListener('input', (e) => { document.getElementById('splitValue').textContent = e.target.value; });
     document.querySelectorAll('.filter-bar button').forEach(btn => { btn.addEventListener('click', () => applyFilter(btn.dataset.filter)); });
     let searchTimeout;
     document.getElementById('searchInput').addEventListener('input', (e) => {
@@ -1942,10 +3056,6 @@ function setupEvents() {
         if (openFolderMode === 'images_labels') { browseFolders(document.getElementById('imgDirInput').value || '', 'imgDirBrowser', 'imgDirInput'); }
         else { browseFolders(document.getElementById('singleFolderInput').value || '', 'singleFolderBrowser', 'singleFolderInput'); }
         openModal('openFolderModal');
-    });
-    document.getElementById('saveFolderBtn').addEventListener('click', () => {
-        browseFolders(document.getElementById('saveDirInput').value || '', 'saveDirBrowser', 'saveDirInput');
-        openModal('saveFolderModal');
     });
     document.getElementById('editClassesBtn').addEventListener('click', openClassEditor);
     document.querySelectorAll('.modal-overlay').forEach(overlay => { overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('show'); }); });
@@ -1984,7 +3094,13 @@ function onMouseDown(e) {
 function onMouseMove(e) {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    if (imgLoaded) { document.getElementById('coordsDisplay').textContent = 'x: ' + ((mx-offsetX)/(imgW*scale)*imgW).toFixed(0) + ', y: ' + ((my-offsetY)/(imgH*scale)*imgH).toFixed(0); }
+    if (imgLoaded) {
+        const imgX = ((mx-offsetX)/(imgW*scale)*imgW).toFixed(0);
+        const imgY = ((my-offsetY)/(imgH*scale)*imgH).toFixed(0);
+        document.getElementById('coordsDisplay').textContent = 'x: ' + imgX + ', y: ' + imgY;
+        // Broadcast cursor to room (throttled)
+        emitCursorThrottled(parseFloat(imgX) / imgW, parseFloat(imgY) / imgH);
+    }
     if (drawing) { drawCurrent = {x:mx, y:my}; draw(); }
     else if (dragging && selectedBoxIdx >= 0) {
         const dx = (mx-dragStart.x)/(imgW*scale), dy = (my-dragStart.y)/(imgH*scale);
@@ -2051,12 +3167,27 @@ function onKeyDown(e) {
     if (document.getElementById('annotatorView').style.display === 'none') return;
     if (e.key === 'a' || e.key === 'ArrowLeft') { navigateImage(-1); e.preventDefault(); }
     if (e.key === 'd' || e.key === 'ArrowRight') { navigateImage(1); e.preventDefault(); }
+    if (e.key === 'w') { if (currentPage > 0) loadImagePage(currentPage - 1).then(() => { if (loadedImages.length > 0) selectImage(loadedImages.length - 1); }); e.preventDefault(); }
+    if (e.key === 's' && !e.ctrlKey) { if (currentPage < totalPages - 1) loadImagePage(currentPage + 1).then(() => { if (loadedImages.length > 0) selectImage(0); }); e.preventDefault(); }
     if (e.key === 'b') setMode('draw');
     if (e.key === 'v') setMode('select');
     if (e.key === 'f') fitToScreen();
     if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedBoxIdx >= 0) { deleteBox(selectedBoxIdx); e.preventDefault(); } }
     if (e.ctrlKey && e.key === 's') { saveLabels(); e.preventDefault(); }
     if (e.ctrlKey && e.key === 'z') { undo(); e.preventDefault(); }
+    if (e.key === '?') { openModal('shortcutsModal'); e.preventDefault(); }
+    if (e.key === 'c') { toggleChat(); e.preventDefault(); }
+    if (e.key === 'i') { openDashboard(); e.preventDefault(); }
+    if (e.key === 'e') { openSaveExportModal(); e.preventDefault(); }
+    if (e.key === 'p') { document.getElementById('inferenceToolbar').classList.toggle('show'); e.preventDefault(); }
+    if (e.key === 'q') { openQualityMetrics(); e.preventDefault(); }
+    if (e.key === 'm') { toggleBatchMode(); e.preventDefault(); }
+    // Number keys 1-9 to select class
+    if (e.key >= '1' && e.key <= '9') {
+        const classIdx = parseInt(e.key) - 1;
+        const sel = document.getElementById('classSelect');
+        if (classIdx < sel.options.length) { sel.selectedIndex = classIdx; }
+    }
 }
 
 // =============================================================================
@@ -2177,7 +3308,7 @@ async function submitSaveFolder() {
     const res = await fetch('/api/save-folder', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ save_dir: saveDir }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, true); return; }
-    closeModal('saveFolderModal');
+    closeModal('saveExportModal');
     showToast('Export dir set: ' + data.save_dir);
     loadCurrentDirs();
 }
