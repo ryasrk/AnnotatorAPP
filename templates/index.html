@@ -1,0 +1,1916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus Annotator</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+/* =============================================================================
+   Reset & Base
+   ============================================================================= */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; width: 100vw; overflow: hidden; max-width: 100%; }
+
+/* =============================================================================
+   Login / Register
+   ============================================================================= */
+.auth-view { display:flex; align-items:center; justify-content:center; height:100vh; }
+.auth-card { background:#16213e; border:1px solid #0f3460; border-radius:12px; padding:40px; width:380px; text-align:center; }
+.auth-card h1 { color:#e94560; font-size:28px; margin-bottom:4px; }
+.auth-card .subtitle { color:#888; font-size:13px; margin-bottom:24px; }
+.auth-card input { width:100%; padding:10px 14px; margin-bottom:12px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:6px; font-size:14px; }
+.auth-card .btn-auth { width:100%; padding:12px; background:#e94560; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:15px; font-weight:bold; margin-bottom:8px; }
+.auth-card .btn-auth:hover { background:#c73e54; }
+.auth-card .btn-secondary { width:100%; padding:10px; background:transparent; color:#e94560; border:1px solid #e94560; border-radius:6px; cursor:pointer; font-size:13px; }
+.auth-card .btn-secondary:hover { background:#e9456020; }
+.auth-card .auth-error { color:#e94560; font-size:12px; margin-bottom:8px; min-height:18px; }
+.auth-card .switch-link { color:#888; font-size:12px; margin-top:16px; cursor:pointer; }
+.auth-card .switch-link span { color:#e94560; }
+
+/* =============================================================================
+   Rooms Dashboard
+   ============================================================================= */
+.rooms-view { display:none; height:100vh; width:100%; flex-direction:column; overflow:hidden; }
+.rooms-header { padding:16px 40px; background:#16213e; border-bottom:1px solid #0f3460; display:flex; align-items:center; justify-content:space-between; width:100%; overflow:hidden; flex-shrink:0; }
+.rooms-header h1 { color:#e94560; font-size:22px; }
+.rooms-header .user-badge { display:flex; align-items:center; gap:8px; font-size:13px; }
+.rooms-header .user-dot { width:12px; height:12px; border-radius:50%; }
+.rooms-header .btn-logout { padding:6px 14px; background:transparent; color:#e94560; border:1px solid #e94560; border-radius:4px; cursor:pointer; font-size:12px; }
+
+/* Main menu tabs */
+.main-tabs { display:flex; border-bottom:2px solid #0f3460; background:#12122a; flex-shrink:0; }
+.main-tab { padding:12px 32px; cursor:pointer; font-size:14px; font-weight:600; color:#888; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all 0.2s; display:flex; align-items:center; gap:8px; }
+.main-tab:hover { color:#ccc; background:#16213e; }
+.main-tab.active { color:#e94560; border-bottom-color:#e94560; }
+.main-tab .tab-icon { font-size:16px; }
+
+.rooms-body { flex:1; display:flex; align-items:flex-start; justify-content:center; padding:40px; gap:40px; overflow-y:auto; overflow-x:hidden; flex-wrap:wrap; }
+.rooms-section { background:#16213e; border:1px solid #0f3460; border-radius:8px; padding:24px; min-width:340px; }
+.rooms-section h2 { color:#e94560; font-size:16px; margin-bottom:16px; }
+.rooms-section input { width:100%; padding:8px 12px; margin-bottom:10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px; }
+.rooms-section .btn-room { padding:10px 20px; background:#e94560; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold; }
+.rooms-section .btn-room:hover { background:#c73e54; }
+.room-error { color:#e94560; font-size:12px; min-height:16px; margin-bottom:8px; }
+
+.room-list { margin-top:16px; }
+.room-card { padding:12px 16px; border:1px solid #0f3460; border-radius:6px; margin-bottom:8px; cursor:pointer; display:flex; align-items:center; gap:12px; }
+.room-card:hover { background:#1a1a3e; }
+.room-card .room-icon { font-size:24px; }
+.room-card .room-details { flex:1; }
+.room-card .room-name { font-size:14px; font-weight:bold; }
+.room-card .room-meta { font-size:11px; color:#888; margin-top:2px; }
+.room-card .room-code-badge { background:#0f3460; padding:4px 8px; border-radius:4px; font-size:11px; font-family:monospace; color:#e94560; }
+
+/* =============================================================================
+   Training View
+   ============================================================================= */
+.training-body { flex:1; display:flex; flex-direction:column; overflow:hidden; width:100%; min-height:0; }
+
+/* Sticky training toolbar */
+.training-toolbar { padding:10px 24px; background:#12122a; border-bottom:1px solid #0f3460; display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.training-toolbar .btn-new-train { padding:8px 20px; background:#4caf50; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:bold; }
+.training-toolbar .btn-new-train:hover { background:#388e3c; }
+.training-toolbar .gpu-info { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:11px; color:#aaa; }
+.training-toolbar .gpu-bar-wrap { width:120px; height:8px; background:#1a1a2e; border-radius:4px; overflow:hidden; }
+.training-toolbar .gpu-bar { height:100%; border-radius:4px; transition:width 0.3s; }
+.training-toolbar .gpu-bar.low { background:#4caf50; }
+.training-toolbar .gpu-bar.mid { background:#ff9800; }
+.training-toolbar .gpu-bar.high { background:#e94560; }
+
+/* Training content area */
+.training-content { flex:1; display:flex; overflow:hidden; min-height:0; }
+
+/* Session list panel */
+.session-list-panel { width:280px; min-width:280px; flex-shrink:0; background:#16213e; border-right:1px solid #0f3460; display:flex; flex-direction:column; overflow:hidden; }
+.session-list-header { padding:10px 16px; border-bottom:1px solid #0f3460; font-size:12px; color:#888; }
+.session-list { flex:1; overflow-y:auto; }
+.session-card { padding:12px 16px; border-bottom:1px solid #0f3460; cursor:pointer; }
+.session-card:hover { background:#1a1a3e; }
+.session-card.active { background:#0f3460; border-left:3px solid #e94560; }
+.session-card .session-name { font-size:13px; font-weight:bold; color:#e0e0e0; margin-bottom:4px; }
+.session-card .session-meta { font-size:11px; color:#888; display:flex; align-items:center; gap:6px; }
+.session-card .session-status { display:inline-block; padding:2px 6px; border-radius:8px; font-size:9px; font-weight:bold; text-transform:uppercase; }
+.session-card .session-status.running { background:#1b5e20; color:#4caf50; }
+.session-card .session-status.starting { background:#1b5e20; color:#4caf50; }
+.session-card .session-status.completed { background:#0f3460; color:#2196f3; }
+.session-card .session-status.stopped { background:#333; color:#888; }
+.session-card .session-status.error { background:#4a0f0f; color:#e94560; }
+.session-card .session-progress { margin-top:6px; }
+.session-card .progress-bar-outer { width:100%; height:6px; background:#1a1a2e; border-radius:3px; overflow:hidden; }
+.session-card .progress-bar-inner { height:100%; background:#4caf50; border-radius:3px; transition:width 0.3s; }
+.session-card .progress-text { font-size:10px; color:#888; margin-top:2px; }
+.session-list-empty { padding:40px 20px; text-align:center; color:#555; font-size:13px; }
+
+/* Session detail panel */
+.session-detail { flex:1; display:flex; flex-direction:column; background:#0a0a1a; min-width:0; overflow:hidden; }
+.session-detail-header { padding:12px 20px; border-bottom:1px solid #0f3460; display:flex; align-items:center; gap:12px; flex-shrink:0; flex-wrap:wrap; }
+.session-detail-header .session-title { font-size:15px; font-weight:bold; color:#e94560; }
+.session-detail-header .status-badge { padding:3px 8px; border-radius:12px; font-size:10px; font-weight:bold; }
+.session-detail-header .status-badge.idle { background:#333; color:#888; }
+.session-detail-header .status-badge.running { background:#1b5e20; color:#4caf50; }
+.session-detail-header .status-badge.completed { background:#0f3460; color:#2196f3; }
+.session-detail-header .status-badge.stopped { background:#333; color:#888; }
+.session-detail-header .status-badge.error { background:#4a0f0f; color:#e94560; }
+.session-detail-header .spacer { flex:1; }
+.session-detail-header .btn-stop-session { padding:6px 16px; background:#e94560; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold; flex-shrink:0; }
+.session-detail-header .btn-stop-session:hover { opacity:0.85; }
+.session-detail-header .progress-inline { font-size:12px; color:#4caf50; }
+
+.session-log { flex:1; padding:10px 20px; overflow-y:auto; font-family:'Fira Code','Consolas',monospace; font-size:11px; line-height:1.5; }
+.session-log .log-line { padding:1px 0; }
+.session-log .log-line.info { color:#aaa; }
+.session-log .log-line.success { color:#4caf50; }
+.session-log .log-line.error { color:#e94560; }
+.session-log .log-line.warning { color:#ff9800; }
+
+.session-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; color:#555; }
+.session-empty .big-icon { font-size:36px; margin-bottom:8px; }
+.session-empty p { font-size:12px; }
+
+/* New Training Modal config */
+.new-train-config { max-height:50vh; overflow-y:auto; overflow-x:hidden; }
+.new-train-row { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; }
+.new-train-section { flex:1; min-width:200px; max-width:320px; }
+.new-train-section label { font-size:12px; color:#aaa; display:block; margin-bottom:4px; }
+.new-train-section input, .new-train-section select { width:100%; padding:7px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:12px; margin-bottom:6px; box-sizing:border-box; }
+.new-train-section .btn-browse { padding:5px 12px; background:#0f3460; color:#ccc; border:1px solid #0f3460; border-radius:4px; cursor:pointer; font-size:11px; }
+.new-train-section .btn-browse:hover { background:#1a1a3e; }
+.param-groups-row { display:flex; flex-wrap:wrap; gap:8px; width:100%; margin-top:12px; box-sizing:border-box; }
+.param-group { border:1px solid #0f3460; border-radius:6px; background:#1a1a2e; flex:1; min-width:260px; max-width:400px; overflow:hidden; box-sizing:border-box; }
+.param-group-header { padding:8px 16px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; font-size:12px; font-weight:600; color:#ccc; }
+.param-group-header:hover { background:#16213e; }
+.param-group-header .chevron { transition:transform 0.2s; font-size:10px; }
+.param-group-header .chevron.open { transform:rotate(90deg); }
+.param-group-body { padding:6px 12px 12px; display:none; overflow:hidden; }
+.param-group-body.open { display:block; }
+.param-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; min-width:0; overflow:hidden; }
+.param-row label { width:110px; min-width:110px; font-size:11px; color:#aaa; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.param-row input, .param-row select { flex:1; min-width:0; padding:4px 6px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:11px; box-sizing:border-box; }
+.param-row input[type="checkbox"] { width:16px; height:16px; flex:none; min-width:16px; accent-color:#e94560; }
+.param-row .param-default { font-size:9px; color:#666; min-width:40px; max-width:50px; text-align:right; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* =============================================================================
+   Annotator
+   ============================================================================= */
+.annotator-view { display:none; height:100vh; width:100%; flex-direction:column; overflow:hidden; }
+.annotator-topbar { padding:6px 16px; background:#0a0a1a; border-bottom:1px solid #0f3460; display:flex; align-items:center; gap:12px; font-size:12px; }
+.annotator-topbar .room-badge { background:#0f3460; padding:3px 10px; border-radius:4px; color:#e94560; font-family:monospace; }
+.annotator-topbar .user-indicator { display:flex; align-items:center; gap:4px; }
+.annotator-topbar .user-indicator .dot { width:8px; height:8px; border-radius:50%; }
+.annotator-topbar .btn-back { padding:4px 10px; background:transparent; color:#e94560; border:1px solid #e94560; border-radius:4px; cursor:pointer; font-size:11px; }
+.annotator-topbar .spacer { flex:1; }
+.annotator-topbar .members-list { display:flex; gap:4px; }
+.annotator-topbar .member-dot { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:bold; cursor:default; }
+.annotator-topbar .ws-indicator { width:8px; height:8px; border-radius:50%; background:#4caf50; title:connected; }
+.annotator-topbar .ws-indicator.disconnected { background:#e94560; }
+
+.annotator-body { flex:1; display:flex; overflow:hidden; width:100%; }
+
+.sidebar { width: 300px; min-width: 300px; max-width: 300px; flex-shrink: 0; background: #16213e; display: flex; flex-direction: column; border-right: 1px solid #0f3460; }
+.sidebar-header { padding: 12px 16px; background: #0f3460; }
+.sidebar-header h1 { font-size: 16px; color: #e94560; }
+.sidebar-header .stats { font-size: 11px; color: #888; margin-top: 4px; }
+
+.filter-bar { padding: 8px 16px; display: flex; gap: 4px; }
+.filter-bar button { flex: 1; padding: 6px; border: 1px solid #0f3460; background: #16213e; color: #ccc; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.filter-bar button.active { background: #0f3460; color: #e94560; border-color: #e94560; }
+
+.search-bar { padding: 0 16px 8px; }
+.search-bar input { width: 100%; padding: 6px 10px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; border-radius: 4px; font-size: 12px; }
+
+.image-list { flex: 1; overflow-y: auto; }
+.image-item { padding: 6px 16px; cursor: pointer; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.image-item:hover { background: #1a1a3e; }
+.image-item.active { background: #0f3460; border-left: 3px solid #e94560; }
+.image-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.image-item .dot.annotated { background: #4caf50; }
+.image-item .dot.empty { background: #ff9800; }
+.image-item .user-edit-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; border: 1px solid #333; }
+.image-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.image-item .count { color: #888; font-size: 10px; }
+
+.pagination-bar { padding:6px 16px; display:flex; align-items:center; justify-content:center; gap:4px; border-top:1px solid #0f3460; }
+.pagination-bar button { padding:4px 8px; border:1px solid #0f3460; background:#1a1a2e; color:#ccc; border-radius:4px; cursor:pointer; font-size:11px; }
+.pagination-bar button:hover { background:#0f3460; }
+.pagination-bar button:disabled { opacity:0.4; cursor:default; }
+.pagination-bar .page-info { font-size:11px; color:#888; min-width:70px; text-align:center; }
+
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.toolbar { padding: 6px 16px; background: #16213e; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #0f3460; flex-wrap: wrap; overflow: hidden; }
+.toolbar .nav-btn { padding: 5px 12px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; border-radius: 4px; cursor: pointer; font-size:12px; }
+.toolbar .nav-btn:hover { background: #0f3460; }
+.toolbar .image-info { flex: 1; font-size: 12px; min-width: 150px; }
+.toolbar .tool-group { display: flex; gap: 4px; }
+.toolbar .tool-btn { padding: 5px 10px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.toolbar .tool-btn:hover { background: #0f3460; }
+.toolbar .tool-btn.active { background: #e94560; border-color: #e94560; color: #fff; }
+
+.canvas-container { flex: 1; position: relative; overflow: hidden; background: #111; display: flex; align-items: center; justify-content: center; }
+#annotationCanvas { cursor: crosshair; }
+
+.right-panel { width: 260px; min-width: 260px; max-width: 260px; flex-shrink: 0; background: #16213e; border-left: 1px solid #0f3460; display: flex; flex-direction: column; overflow-y: auto; }
+.panel-section { padding: 10px 16px; border-bottom: 1px solid #0f3460; }
+.panel-section h3 { font-size: 12px; color: #e94560; margin-bottom: 6px; }
+
+.bbox-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.bbox-item { padding: 6px 16px; display: flex; align-items: center; gap: 6px; font-size: 11px; border-bottom: 1px solid #0f3460; cursor: pointer; }
+.bbox-item:hover { background: #1a1a3e; }
+.bbox-item.selected { background: #0f3460; }
+.bbox-item .bbox-color { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.bbox-item .bbox-info { flex: 1; }
+.bbox-item .bbox-delete { color: #e94560; cursor: pointer; padding: 2px 6px; border-radius: 2px; }
+.bbox-item .bbox-delete:hover { background: #e94560; color: #fff; }
+
+.class-select { width: 100%; padding: 6px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; border-radius: 4px; font-size:12px; }
+
+.export-section { padding: 12px 16px; }
+.export-section label { display: block; font-size: 11px; margin-bottom: 4px; }
+.export-section input[type="range"] { width: 100%; margin: 4px 0; }
+.export-section .export-btn { width: 100%; padding: 8px; background: #e94560; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; margin-top: 6px; }
+.export-section .export-btn:hover { background: #c73e54; }
+.export-section .export-btn:disabled { opacity: 0.5; cursor: default; }
+
+.shortcuts { padding: 10px 16px; font-size: 10px; color: #666; line-height: 1.8; }
+.shortcuts kbd { background: #0f3460; padding: 1px 4px; border-radius: 2px; color: #ccc; font-size:10px; }
+
+.status-bar { padding: 4px 16px; background: #0f3460; font-size: 11px; color: #888; display: flex; gap: 16px; }
+
+/* =============================================================================
+   Shared UI
+   ============================================================================= */
+.toast { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); padding: 10px 24px; background: #4caf50; color: #fff; border-radius: 4px; font-size: 13px; z-index: 1000; display: none; }
+.toast.error { background: #e94560; }
+
+.modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:2000; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { background:#16213e; border:1px solid #0f3460; border-radius:8px; padding:24px; min-width:500px; max-width:700px; max-height:80vh; display:flex; flex-direction:column; }
+.modal h2 { font-size:16px; color:#e94560; margin-bottom:16px; }
+.modal label { display:block; font-size:12px; color:#aaa; margin-bottom:4px; margin-top:12px; }
+.modal input[type="text"] { width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px; }
+.modal .modal-actions { display:flex; gap:8px; margin-top:20px; justify-content:flex-end; }
+.modal .btn { padding:8px 18px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; cursor:pointer; font-size:13px; }
+.modal .btn:hover { background:#0f3460; }
+.modal .btn-primary { background:#e94560; border-color:#e94560; color:#fff; }
+.modal .btn-primary:hover { background:#c73e54; }
+
+.folder-browser { max-height:200px; overflow-y:auto; border:1px solid #0f3460; border-radius:4px; background:#1a1a2e; margin-top:4px; }
+.folder-item { padding:5px 12px; cursor:pointer; font-size:12px; border-bottom:1px solid #0f3460; }
+.folder-item:hover { background:#0f3460; }
+.folder-item.parent { color:#e94560; font-weight:bold; }
+
+.class-editor-list { max-height:200px; overflow-y:auto; }
+.class-editor-row { display:flex; align-items:center; gap:8px; padding:4px 0; }
+.class-editor-row input { flex:1; padding:6px 8px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:12px; }
+.class-editor-row .class-id { color:#888; font-size:11px; min-width:24px; }
+.class-editor-row .btn-del { color:#e94560; cursor:pointer; padding:2px 6px; font-size:14px; }
+.class-editor-row .btn-del:hover { background:#e94560; color:#fff; border-radius:2px; }
+.btn-add-class { margin-top:8px; padding:6px 12px; background:#0f3460; color:#ccc; border:1px solid #0f3460; border-radius:4px; cursor:pointer; font-size:12px; }
+
+.mode-selector { display:flex; gap:12px; margin:8px 0; }
+.mode-selector label { display:flex; align-items:center; gap:4px; font-size:12px; color:#ccc; cursor:pointer; }
+.mode-selector input[type="radio"] { accent-color:#e94560; }
+.mode-fields { margin-top:8px; }
+.mode-fields.hidden { display:none; }
+
+.dir-display { font-size:10px; color:#666; padding:4px 16px; word-break:break-all; border-bottom:1px solid #0f3460; }
+.blank-prompt { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#666; }
+.blank-prompt .big-icon { font-size:64px; margin-bottom:16px; }
+.blank-prompt p { font-size:14px; margin-bottom:16px; }
+.blank-prompt button { padding:12px 24px; background:#e94560; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; }
+.blank-prompt button:hover { background:#c73e54; }
+
+.user-legend { padding:8px 16px; border-bottom:1px solid #0f3460; }
+.user-legend-title { font-size:10px; color:#888; margin-bottom:4px; }
+.user-legend-item { display:inline-flex; align-items:center; gap:3px; margin-right:8px; font-size:10px; }
+.user-legend-item .dot { width:6px; height:6px; border-radius:50%; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1a1a2e; }
+::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN VIEW ==================== -->
+<div class="auth-view" id="loginView">
+  <div class="auth-card">
+    <h1>⚡ Nexus Annotator</h1>
+    <div class="subtitle">Multi-user YOLO Annotation & Training Platform</div>
+    <div id="loginForm">
+      <div class="auth-error" id="loginError"></div>
+      <input type="text" id="loginUsername" placeholder="Username" autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+      <button class="btn-auth" onclick="doLogin()">Login</button>
+      <div class="switch-link" onclick="showRegister()">Don't have an account? <span>Register</span></div>
+    </div>
+    <div id="registerForm" style="display:none;">
+      <div class="auth-error" id="registerError"></div>
+      <input type="text" id="regUsername" placeholder="Username (3+ chars)">
+      <input type="text" id="regDisplayName" placeholder="Display Name (optional)">
+      <input type="password" id="regPassword" placeholder="Password (4+ chars)">
+      <button class="btn-auth" onclick="doRegister()">Create Account</button>
+      <div class="switch-link" onclick="showLogin()">Already have an account? <span>Login</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ROOMS + TRAINING VIEW (Main Menu) ==================== -->
+<div class="rooms-view" id="roomsView">
+  <div class="rooms-header">
+    <h1>⚡ Nexus Annotator</h1>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <div class="user-badge" id="roomsUserBadge">
+        <div class="user-dot" id="roomsUserDot"></div>
+        <span id="roomsUsername"></span>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Main Menu Tabs -->
+  <div class="main-tabs" id="mainTabs">
+    <div class="main-tab active" data-tab="rooms" onclick="switchMainTab('rooms')">
+      <span class="tab-icon">🏠</span> Rooms
+    </div>
+    <div class="main-tab" data-tab="training" onclick="switchMainTab('training')">
+      <span class="tab-icon">🚀</span> Training
+    </div>
+  </div>
+
+  <!-- Rooms Tab Content -->
+  <div class="rooms-body" id="roomsTabContent">
+    <div class="rooms-section">
+      <h2>📋 Your Rooms</h2>
+      <div class="room-list" id="roomList"><div style="color:#888; font-size:13px;">Loading...</div></div>
+    </div>
+    <div>
+      <div class="rooms-section" style="margin-bottom:16px;">
+        <h2>➕ Create Room</h2>
+        <div class="room-error" id="createRoomError"></div>
+        <input type="text" id="createRoomName" placeholder="Room name">
+        <button class="btn-room" onclick="createRoom()">Create</button>
+      </div>
+      <div class="rooms-section">
+        <h2>🔑 Join Room</h2>
+        <div class="room-error" id="joinRoomError"></div>
+        <input type="text" id="joinRoomCode" placeholder="Enter 6-char room code" maxlength="6" style="text-transform:uppercase; font-family:monospace; letter-spacing:2px;">
+        <button class="btn-room" onclick="joinRoom()">Join</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Training Tab Content -->
+  <div class="training-body" id="trainingTabContent" style="display:none;">
+    <!-- Sticky Training Toolbar -->
+    <div class="training-toolbar">
+      <button class="btn-new-train" onclick="showNewTrainingForm()">➕ New Training</button>
+      <div class="gpu-info" id="gpuInfoBar">
+        <span>GPU:</span>
+        <span id="gpuInfoText">Loading...</span>
+        <div class="gpu-bar-wrap"><div class="gpu-bar low" id="gpuBar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <!-- Main training content: session list + detail -->
+    <div class="training-content">
+      <!-- Session List (left panel) -->
+      <div class="session-list-panel">
+        <div class="session-list-header">TRAINING SESSIONS</div>
+        <div class="session-list" id="sessionList">
+          <div class="session-list-empty" id="sessionListEmpty">No training sessions yet.<br>Click ➕ New Training to start.</div>
+        </div>
+      </div>
+
+      <!-- Session Detail (right panel) -->
+      <div class="session-detail" id="sessionDetail">
+        <!-- New Training Form (hidden by default) -->
+        <div id="newTrainForm" style="display:none; padding:20px; overflow-y:auto; flex:1;">
+          <h3 style="color:#e94560; margin-bottom:16px;">🚀 New Training Session</h3>
+          <div class="new-train-config">
+            <div class="new-train-row">
+              <div class="new-train-section">
+                <label>📝 Session Name</label>
+                <input type="text" id="trainSessionName" placeholder="e.g. Tugboat v1 experiment">
+              </div>
+              <div class="new-train-section">
+                <label>📁 Data YAML Path</label>
+                <input type="text" id="trainDataYaml" placeholder="/path/to/data.yaml">
+                <button class="btn-browse" onclick="browseForTrainData()">Browse...</button>
+                <div class="folder-browser" id="trainDataBrowser" style="display:none;"></div>
+              </div>
+              <div class="new-train-section">
+                <label>🧠 Model</label>
+                <select id="trainModel">
+                  <option value="yolo26n.pt">YOLO26n (nano - fastest)</option>
+                  <option value="yolo26s.pt">YOLO26s (small)</option>
+                  <option value="yolo26m.pt">YOLO26m (medium)</option>
+                  <option value="yolo26l.pt">YOLO26l (large)</option>
+                  <option value="yolo11n.pt">YOLO11n (nano)</option>
+                  <option value="yolo11s.pt">YOLO11s (small)</option>
+                  <option value="yolo11m.pt">YOLO11m (medium)</option>
+                  <option value="yolo11l.pt">YOLO11l (large)</option>
+                  <option value="yolo11x.pt">YOLO11x (extra-large)</option>
+                  <option value="yolov8n.pt">YOLOv8n (nano)</option>
+                  <option value="yolov8s.pt">YOLOv8s (small)</option>
+                  <option value="yolov8m.pt">YOLOv8m (medium)</option>
+                  <option value="yolov8l.pt">YOLOv8l (large)</option>
+                  <option value="yolov8x.pt">YOLOv8x (extra-large)</option>
+                </select>
+              </div>
+            </div>
+            <!-- Parameter Groups -->
+            <div class="param-groups-row" id="trainParamGroups"></div>
+          </div>
+          <div style="margin-top:16px; display:flex; gap:8px;">
+            <button style="padding:10px 24px; background:#4caf50; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold;" onclick="startTrainingSession()">🚀 Start Training</button>
+            <button style="padding:10px 24px; background:#333; color:#aaa; border:1px solid #555; border-radius:6px; cursor:pointer; font-size:13px;" onclick="hideNewTrainingForm()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Session Log View (hidden by default) -->
+        <div id="sessionLogView" style="display:none; flex-direction:column; overflow:hidden; flex:1;">
+          <div class="session-detail-header">
+            <span class="session-title" id="sessionDetailName">—</span>
+            <span class="status-badge idle" id="sessionDetailStatus">—</span>
+            <span class="progress-inline" id="sessionDetailProgress"></span>
+            <span class="spacer"></span>
+            <button class="btn-stop-session" id="sessionStopBtn" onclick="stopTrainingSession()" style="display:none;">⏹ Force Stop</button>
+            <button class="btn-stop-session" id="sessionResumeBtn" onclick="resumeTrainingSession()" style="display:none; background:#ff9800;">▶ Continue</button>
+            <button class="btn-stop-session" id="sessionRemoveBtn" onclick="removeTrainingSession()" style="background:#666;">🗑 Remove</button>
+          </div>
+          <div class="session-log" id="sessionLogContent"></div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="session-empty" id="sessionEmptyState">
+          <div class="big-icon">🚀</div>
+          <p>Select a session or create a new training</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== ANNOTATOR VIEW ==================== -->
+<div class="annotator-view" id="annotatorView">
+  <div class="annotator-topbar">
+    <button class="btn-back" onclick="leaveRoom()">◀ Rooms</button>
+    <span>Room:</span>
+    <span class="room-badge" id="topbarRoomCode">---</span>
+    <span id="topbarRoomName" style="color:#ccc;"></span>
+    <div class="spacer"></div>
+    <div class="members-list" id="topbarMembers"></div>
+    <div class="user-indicator">
+      <div class="dot" id="topbarUserDot"></div>
+      <span id="topbarUsername"></span>
+    </div>
+    <div class="ws-indicator" id="wsIndicator" title="WebSocket connected"></div>
+  </div>
+  <div class="annotator-body">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h1>⚡ Nexus Annotator</h1>
+        <div class="stats" id="statsBar">Loading...</div>
+      </div>
+      <div style="padding:6px 16px; display:flex; gap:4px;">
+        <button class="tool-btn" style="flex:1; font-size:11px;" id="openFolderBtn" title="Open image folder">📂 Open</button>
+        <button class="tool-btn" style="flex:1; font-size:11px;" id="saveFolderBtn" title="Set export folder">💾 Save</button>
+      </div>
+      <div class="dir-display" id="dirDisplay">Loading...</div>
+      <div class="user-legend" id="userLegend" style="display:none;">
+        <div class="user-legend-title">Editor colors:</div>
+        <div id="userLegendItems"></div>
+      </div>
+      <div class="filter-bar">
+        <button class="active" data-filter="all">All</button>
+        <button data-filter="annotated">Annotated</button>
+        <button data-filter="unannotated">Empty</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search images...">
+      </div>
+      <div class="image-list" id="imageList"></div>
+      <div class="pagination-bar" id="paginationBar">
+        <button id="pageFirst" title="First page">⏮</button>
+        <button id="pagePrev" title="Previous page">◀</button>
+        <span class="page-info" id="pageInfo">0 / 0</span>
+        <button id="pageNext" title="Next page">▶</button>
+        <button id="pageLast" title="Last page">⏭</button>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="toolbar">
+        <button class="nav-btn" id="prevBtn" title="Previous (A)">◀ Prev</button>
+        <button class="nav-btn" id="nextBtn" title="Next (D)">Next ▶</button>
+        <span class="image-info" id="imageInfo">No image selected</span>
+        <div class="tool-group">
+          <button class="tool-btn active" id="drawTool" title="Draw bbox (B)">✏️ Draw</button>
+          <button class="tool-btn" id="selectTool" title="Select bbox (V)">👆 Select</button>
+          <button class="tool-btn" id="zoomFit" title="Fit to screen (F)">🔍 Fit</button>
+        </div>
+        <button class="tool-btn" id="saveBtn" title="Save (Ctrl+S)">💾 Save</button>
+        <button class="tool-btn" id="undoBtn" title="Undo (Ctrl+Z)">↩ Undo</button>
+      </div>
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="annotationCanvas"></canvas>
+        <div class="blank-prompt" id="blankPrompt" style="display:none; position:absolute;">
+          <div class="big-icon">📂</div>
+          <p>No images loaded. Open a folder to start annotating.</p>
+          <button onclick="document.getElementById('openFolderBtn').click()">Open Folder</button>
+        </div>
+      </div>
+      <div class="status-bar">
+        <span id="coordsDisplay">x: 0, y: 0</span>
+        <span id="zoomDisplay">Zoom: 100%</span>
+        <span id="modeDisplay">Mode: Draw</span>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div class="panel-section">
+        <h3>Current Class <span style="float:right;cursor:pointer;font-size:11px;color:#888;" id="editClassesBtn">✏️ Edit</span></h3>
+        <select class="class-select" id="classSelect">
+          {% for name in class_names %}
+          <option value="{{ loop.index0 }}">{{ loop.index0 }}: {{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="panel-section"><h3>Bounding Boxes</h3></div>
+      <div class="bbox-list" id="bboxList"><div style="padding:16px;color:#666;font-size:12px;">No boxes yet</div></div>
+      <div class="panel-section">
+        <h3>Shortcuts</h3>
+        <div class="shortcuts">
+          <kbd>B</kbd> Draw &nbsp; <kbd>V</kbd> Select &nbsp; <kbd>F</kbd> Fit<br>
+          <kbd>A</kbd>/<kbd>D</kbd> Prev/Next &nbsp; <kbd>Del</kbd> Delete<br>
+          <kbd>Ctrl+S</kbd> Save &nbsp; <kbd>Ctrl+Z</kbd> Undo
+        </div>
+      </div>
+      <div class="export-section">
+        <h3 style="font-size:12px; color:#e94560; margin-bottom:6px;">Export to Training</h3>
+        <label>Train/Valid split: <span id="splitValue">80</span>%</label>
+        <input type="range" id="splitSlider" min="50" max="95" value="80">
+        <button class="export-btn" id="exportBtn">📦 Export Dataset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Open Folder Modal -->
+<div class="modal-overlay" id="openFolderModal">
+  <div class="modal">
+    <h2>📂 Open Folder</h2>
+    <div class="mode-selector">
+      <label><input type="radio" name="openMode" value="images_only" onchange="switchOpenMode('images_only')"> [Images] only</label>
+      <label><input type="radio" name="openMode" value="images_labels" checked onchange="switchOpenMode('images_labels')"> [Images, Labels]</label>
+      <label><input type="radio" name="openMode" value="mixed" onchange="switchOpenMode('mixed')"> [Mixed] folder</label>
+    </div>
+    <div class="mode-fields hidden" id="singleFolderFields">
+      <label id="singleFolderLabel">Folder</label>
+      <input type="text" id="singleFolderInput" placeholder="/path/to/folder">
+      <div class="folder-browser" id="singleFolderBrowser"></div>
+    </div>
+    <div class="mode-fields" id="dualFolderFields">
+      <label>Images Directory</label>
+      <input type="text" id="imgDirInput" placeholder="/path/to/images">
+      <div class="folder-browser" id="imgDirBrowser"></div>
+      <label>Labels Directory (optional — auto-detects sibling "labels" folder)</label>
+      <input type="text" id="lblDirInput" placeholder="/path/to/labels">
+      <div class="folder-browser" id="lblDirBrowser"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('openFolderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitOpenFolder()">Open</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save Folder Modal -->
+<div class="modal-overlay" id="saveFolderModal">
+  <div class="modal">
+    <h2>💾 Save / Export Folder</h2>
+    <label>Export Directory</label>
+    <input type="text" id="saveDirInput" placeholder="/path/to/export">
+    <div class="folder-browser" id="saveDirBrowser"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('saveFolderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitSaveFolder()">Set</button>
+    </div>
+  </div>
+</div>
+
+<!-- Class Editor Modal -->
+<div class="modal-overlay" id="classEditorModal">
+  <div class="modal">
+    <h2>✏️ Edit Classes</h2>
+    <p style="font-size:12px; color:#888; margin-bottom:12px;">Define class IDs and names for YOLO annotations. ID = row index (0-based).</p>
+    <div class="class-editor-list" id="classEditorList"></div>
+    <button class="btn-add-class" onclick="addClassRow()">+ Add Class</button>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('classEditorModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitClasses()">Save Classes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// Global State
+// =============================================================================
+let currentUser = null;
+let currentRoom = null;
+let roomMembers = [];
+let imageEdits = {};
+let socket = null;
+
+let loadedImages = [];
+let totalImages = 0;
+let totalPages = 0;
+let currentPage = 0;
+let currentGlobalIndex = -1;
+let currentImageName = null;
+let currentLabels = [];
+let undoStack = [];
+let selectedBoxIdx = -1;
+let mode = 'draw';
+let drawing = false;
+let drawStart = null;
+let drawCurrent = null;
+let currentFilter = 'all';
+let currentSearch = '';
+let hasUnsavedChanges = false;
+
+let canvas, ctx;
+let img = new Image();
+let imgLoaded = false;
+let scale = 1;
+let offsetX = 0, offsetY = 0;
+let imgW = 0, imgH = 0;
+
+let dragging = false;
+let dragStart = null;
+let resizing = false;
+let resizeHandle = null;
+
+const BBOX_COLORS = ['#e94560', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#00bcd4'];
+const HANDLE_SIZE = 6;
+const PER_PAGE = 100;
+
+// =============================================================================
+// WebSocket
+// =============================================================================
+function initSocket() {
+    if (socket) return;
+    socket = io({ transports: ['websocket', 'polling'] });
+
+    socket.on('connect', () => {
+        console.log('[WS] Connected');
+        const wsEl = document.getElementById('wsIndicator');
+        if (wsEl) { wsEl.classList.remove('disconnected'); wsEl.title = 'WebSocket connected'; }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('[WS] Disconnected');
+        const wsEl = document.getElementById('wsIndicator');
+        if (wsEl) { wsEl.classList.add('disconnected'); wsEl.title = 'WebSocket disconnected'; }
+    });
+
+    // Room events
+    socket.on('label_saved', (data) => {
+        // Another user saved labels — update image list
+        imageEdits[data.image_name] = data.editor;
+        const item = loadedImages.find(i => i.name === data.image_name);
+        if (item) {
+            item.annotated = data.annotated;
+            item.bbox_count = data.bbox_count;
+        }
+        renderImageList();
+        updateStats();
+        showToast(data.editor.display_name + ' saved ' + data.image_name, false);
+    });
+
+    socket.on('folder_changed', (data) => {
+        showToast('Folder updated: ' + data.image_count + ' images');
+        loadCurrentDirs();
+        loadImagePage(0).then(() => { if (loadedImages.length > 0) selectImage(0); });
+        updateStats();
+    });
+
+    socket.on('user_joined', (data) => {
+        showToast(data.display_name + ' joined the room');
+        refreshRoomMembers();
+    });
+
+    socket.on('user_left', (data) => {
+        showToast(data.display_name + ' left the room');
+        refreshRoomMembers();
+    });
+
+    // Training events
+    socket.on('train_log', (data) => {
+        if (data.session_id === _activeSessionId) {
+            addSessionLogLine(data.message, data.type);
+        }
+        // Update session card status too
+        refreshSessionList();
+    });
+
+    socket.on('train_progress', (data) => {
+        if (data.session_id === _activeSessionId) {
+            const el = document.getElementById('sessionDetailProgress');
+            if (el) el.textContent = 'Epoch ' + data.current_epoch + '/' + data.total_epochs + ' (' + data.percent + '%)';
+        }
+        refreshSessionList();
+    });
+
+    socket.on('train_complete', (data) => {
+        refreshSessionList();
+        if (data.session_id === _activeSessionId) {
+            updateSessionDetailHeader(data.session_id);
+        }
+    });
+}
+
+function joinSocketRoom(roomId) {
+    if (socket) socket.emit('join_room', { room_id: roomId });
+}
+
+function leaveSocketRoom(roomId) {
+    if (socket) socket.emit('leave_room', { room_id: roomId });
+}
+
+function joinTrainingChannel() {
+    if (socket) socket.emit('join_training');
+}
+
+function leaveTrainingChannel() {
+    if (socket) socket.emit('leave_training');
+}
+
+async function refreshRoomMembers() {
+    if (!currentRoom) return;
+    const res = await fetch('/api/rooms/' + currentRoom.room_id);
+    const data = await res.json();
+    roomMembers = data.members || [];
+    updateTopbar();
+}
+
+// =============================================================================
+// View Switching
+// =============================================================================
+function showView(viewId) {
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('roomsView').style.display = 'none';
+    document.getElementById('annotatorView').style.display = 'none';
+    const el = document.getElementById(viewId);
+    el.style.display = 'flex';
+    if (viewId !== 'loginView') el.style.flexDirection = 'column';
+}
+
+// Main menu tabs (Rooms / Training)
+function switchMainTab(tab) {
+    document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('.main-tab[data-tab="' + tab + '"]').classList.add('active');
+
+    document.getElementById('roomsTabContent').style.display = tab === 'rooms' ? 'flex' : 'none';
+    document.getElementById('trainingTabContent').style.display = tab === 'training' ? 'flex' : 'none';
+
+    if (tab === 'training') {
+        joinTrainingChannel();
+        initTrainingView();
+    } else {
+        leaveTrainingChannel();
+    }
+}
+
+// =============================================================================
+// Auth
+// =============================================================================
+function showLogin() { document.getElementById('loginForm').style.display = 'block'; document.getElementById('registerForm').style.display = 'none'; }
+function showRegister() { document.getElementById('loginForm').style.display = 'none'; document.getElementById('registerForm').style.display = 'block'; }
+
+async function doLogin() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    document.getElementById('loginError').textContent = '';
+    if (!username || !password) { document.getElementById('loginError').textContent = 'Fill in all fields'; return; }
+    const res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username, password }) });
+    const data = await res.json();
+    if (data.error) { document.getElementById('loginError').textContent = data.error; return; }
+    currentUser = data;
+    initSocket();
+    enterRoomsView();
+}
+
+async function doRegister() {
+    const username = document.getElementById('regUsername').value.trim();
+    const display_name = document.getElementById('regDisplayName').value.trim();
+    const password = document.getElementById('regPassword').value;
+    document.getElementById('registerError').textContent = '';
+    if (!username || !password) { document.getElementById('registerError').textContent = 'Fill in required fields'; return; }
+    const res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username, password, display_name }) });
+    const data = await res.json();
+    if (data.error) { document.getElementById('registerError').textContent = data.error; return; }
+    currentUser = data;
+    initSocket();
+    enterRoomsView();
+}
+
+async function doLogout() {
+    await fetch('/api/logout', { method: 'POST' });
+    currentUser = null; currentRoom = null;
+    if (socket) { socket.disconnect(); socket = null; }
+    showView('loginView');
+}
+
+async function checkAuth() {
+    const res = await fetch('/api/me');
+    const data = await res.json();
+    if (data.logged_in) { currentUser = data; initSocket(); enterRoomsView(); }
+    else { showView('loginView'); }
+}
+
+// =============================================================================
+// Rooms
+// =============================================================================
+function enterRoomsView() {
+    showView('roomsView');
+    document.getElementById('roomsUsername').textContent = currentUser.display_name || currentUser.username;
+    document.getElementById('roomsUserDot').style.background = currentUser.color;
+    switchMainTab('rooms');
+    loadRooms();
+}
+
+async function loadRooms() {
+    const res = await fetch('/api/rooms');
+    const data = await res.json();
+    const list = document.getElementById('roomList');
+    if (data.rooms.length === 0) { list.innerHTML = '<div style="color:#888; font-size:13px;">No rooms yet. Create or join one!</div>'; return; }
+    list.innerHTML = data.rooms.map(r =>
+        '<div class="room-card" onclick="enterRoom(' + r.id + ')">' +
+        '<div class="room-icon">🏠</div>' +
+        '<div class="room-details"><div class="room-name">' + escHtml(r.name) + '</div>' +
+        '<div class="room-meta">by ' + escHtml(r.creator_name || 'unknown') + ' · ' + r.member_count + ' members</div></div>' +
+        '<div class="room-code-badge">' + escHtml(r.code) + '</div></div>'
+    ).join('');
+}
+
+async function createRoom() {
+    const name = document.getElementById('createRoomName').value.trim();
+    document.getElementById('createRoomError').textContent = '';
+    if (!name) { document.getElementById('createRoomError').textContent = 'Name required'; return; }
+    const res = await fetch('/api/rooms/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name }) });
+    const data = await res.json();
+    if (data.error) { document.getElementById('createRoomError').textContent = data.error; return; }
+    document.getElementById('createRoomName').value = '';
+    showToast('Room created! Code: ' + data.code);
+    loadRooms();
+}
+
+async function joinRoom() {
+    const code = document.getElementById('joinRoomCode').value.trim().toUpperCase();
+    document.getElementById('joinRoomError').textContent = '';
+    if (!code) { document.getElementById('joinRoomError').textContent = 'Code required'; return; }
+    const res = await fetch('/api/rooms/join', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code }) });
+    const data = await res.json();
+    if (data.error) { document.getElementById('joinRoomError').textContent = data.error; return; }
+    document.getElementById('joinRoomCode').value = '';
+    showToast('Joined room: ' + data.name);
+    loadRooms();
+}
+
+async function enterRoom(roomId) {
+    const res = await fetch('/api/rooms/' + roomId + '/enter', { method: 'POST', headers: {'Content-Type': 'application/json'} });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    currentRoom = data;
+    showView('annotatorView');
+    initAnnotator();
+    joinSocketRoom(roomId);
+    const infoRes = await fetch('/api/rooms/' + roomId);
+    const infoData = await infoRes.json();
+    roomMembers = infoData.members || [];
+    updateTopbar();
+    loadImageEdits();
+}
+
+function leaveRoom() {
+    if (hasUnsavedChanges && currentImageName) saveLabels();
+    if (currentRoom) leaveSocketRoom(currentRoom.room_id);
+    currentRoom = null;
+    enterRoomsView();
+}
+
+function updateTopbar() {
+    document.getElementById('topbarRoomCode').textContent = currentRoom.room_code;
+    document.getElementById('topbarRoomName').textContent = currentRoom.room_name;
+    document.getElementById('topbarUsername').textContent = currentUser.display_name || currentUser.username;
+    document.getElementById('topbarUserDot').style.background = currentUser.color;
+    const membersEl = document.getElementById('topbarMembers');
+    membersEl.innerHTML = roomMembers.map(m =>
+        '<div class="member-dot" style="background:' + m.color + ';" title="' + escHtml(m.display_name || m.username) + '">' +
+        escHtml((m.display_name || m.username).charAt(0).toUpperCase()) + '</div>'
+    ).join('');
+    if (roomMembers.length > 0) {
+        document.getElementById('userLegend').style.display = 'block';
+        document.getElementById('userLegendItems').innerHTML = roomMembers.map(m =>
+            '<span class="user-legend-item"><span class="dot" style="background:' + m.color + ';"></span>' +
+            escHtml(m.display_name || m.username) + '</span>'
+        ).join('');
+    }
+}
+
+async function loadImageEdits() {
+    if (!currentRoom) return;
+    const res = await fetch('/api/image-edits?room_id=' + currentRoom.room_id);
+    const data = await res.json();
+    imageEdits = data.edits || {};
+    renderImageList();
+}
+
+// =============================================================================
+// Training View — Multi-Session
+// =============================================================================
+let trainingViewInitialized = false;
+let trainParamsSchema = {};
+let _activeSessionId = null;
+let _gpuInterval = null;
+let _sessionRefreshInterval = null;
+
+async function initTrainingView() {
+    if (trainingViewInitialized) return;
+    trainingViewInitialized = true;
+
+    // Load param schema
+    const res = await fetch('/api/train/params-schema');
+    const data = await res.json();
+    trainParamsSchema = data.schema;
+    buildTrainParamUI();
+
+    // Pre-fill data.yaml
+    try {
+        const dirsRes = await fetch('/api/current-dirs');
+        const dirs = await dirsRes.json();
+        document.getElementById('trainDataYaml').value = dirs.export_dir + '/data.yaml';
+    } catch(e) {}
+
+    // Load sessions
+    await refreshSessionList();
+
+    // Start GPU polling
+    loadGpuInfo();
+    _gpuInterval = setInterval(loadGpuInfo, 5000);
+
+    // Session list auto-refresh
+    _sessionRefreshInterval = setInterval(refreshSessionList, 3000);
+}
+
+// --- GPU Info ---
+async function loadGpuInfo() {
+    try {
+        const res = await fetch('/api/gpu-info');
+        const data = await res.json();
+        const textEl = document.getElementById('gpuInfoText');
+        const barEl = document.getElementById('gpuBar');
+        if (data.gpus && data.gpus.length > 0) {
+            const gpu = data.gpus[0];
+            const usedPct = Math.round((gpu.memory_used_mb / gpu.memory_total_mb) * 100);
+            textEl.textContent = gpu.name + ' — ' + gpu.memory_used_mb + '/' + gpu.memory_total_mb + ' MB (' + usedPct + '%)';
+            barEl.style.width = usedPct + '%';
+            barEl.className = 'gpu-bar ' + (usedPct < 50 ? 'low' : usedPct < 80 ? 'mid' : 'high');
+        } else {
+            textEl.textContent = data.error || 'No GPU detected';
+            barEl.style.width = '0%';
+        }
+    } catch(e) {
+        document.getElementById('gpuInfoText').textContent = 'Error loading GPU info';
+    }
+}
+
+// --- Session List ---
+async function refreshSessionList() {
+    try {
+        const res = await fetch('/api/train/sessions');
+        const data = await res.json();
+        const list = document.getElementById('sessionList');
+        const empty = document.getElementById('sessionListEmpty');
+
+        if (!data.sessions || data.sessions.length === 0) {
+            empty.style.display = 'block';
+            list.querySelectorAll('.session-card').forEach(c => c.remove());
+            return;
+        }
+        empty.style.display = 'none';
+
+        // Build cards
+        let html = '';
+        for (const s of data.sessions) {
+            const active = s.id === _activeSessionId ? ' active' : '';
+            const pct = s.progress ? s.progress.percent || 0 : 0;
+            const epochStr = s.progress ? ('Epoch ' + (s.progress.current_epoch||0) + '/' + (s.progress.total_epochs||'?')) : '';
+            html += '<div class="session-card' + active + '" onclick="viewSession(\'' + s.id + '\')">';
+            html += '  <div class="session-name">' + escHtml(s.name) + '</div>';
+            html += '  <div class="session-meta">';
+            html += '    <span class="session-status ' + s.status + '">' + s.status + '</span>';
+            html += '    <span>' + escHtml(s.model || '') + '</span>';
+            html += '  </div>';
+            if (s.status === 'running' || s.status === 'starting' || pct > 0) {
+                html += '  <div class="session-progress">';
+                html += '    <div class="progress-bar-outer"><div class="progress-bar-inner" style="width:' + pct + '%"></div></div>';
+                html += '    <div class="progress-text">' + epochStr + (pct > 0 ? ' — ' + pct + '%' : '') + '</div>';
+                html += '  </div>';
+            }
+            html += '  <div class="session-meta" style="margin-top:4px;">';
+            html += '    <span>' + (s.created_at || '') + '</span>';
+            if (s.log_count) html += '    <span>' + s.log_count + ' lines</span>';
+            html += '  </div>';
+            html += '</div>';
+        }
+        // Preserve scroll position
+        const scrollTop = list.scrollTop;
+        // Remove old cards but keep empty div
+        list.querySelectorAll('.session-card').forEach(c => c.remove());
+        list.insertAdjacentHTML('beforeend', html);
+        list.scrollTop = scrollTop;
+    } catch(e) {}
+}
+
+// --- View Session Detail ---
+async function viewSession(sessionId) {
+    _activeSessionId = sessionId;
+    document.getElementById('newTrainForm').style.display = 'none';
+    document.getElementById('sessionEmptyState').style.display = 'none';
+    const logView = document.getElementById('sessionLogView');
+    logView.style.display = 'flex';
+
+    // Update session list highlight
+    document.querySelectorAll('.session-card').forEach(c => c.classList.remove('active'));
+    // Find and highlight the clicked card
+    document.querySelectorAll('.session-card').forEach(c => {
+        if (c.onclick && c.onclick.toString().includes(sessionId)) c.classList.add('active');
+    });
+
+    // Fetch session detail
+    try {
+        const res = await fetch('/api/train/status?session_id=' + sessionId);
+        const data = await res.json();
+        if (data.error) { showToast(data.error, true); return; }
+
+        updateSessionDetailHeader(sessionId, data);
+
+        // Render log
+        const logEl = document.getElementById('sessionLogContent');
+        logEl.innerHTML = '';
+        if (data.log) {
+            data.log.forEach(entry => {
+                const line = document.createElement('div');
+                line.className = 'log-line ' + (entry.type || 'info');
+                line.textContent = entry.message || entry;
+                logEl.appendChild(line);
+            });
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+    } catch(e) {
+        showToast('Failed to load session', true);
+    }
+
+    refreshSessionList();
+}
+
+function updateSessionDetailHeader(sessionId, data) {
+    if (!data) {
+        // Re-fetch
+        fetch('/api/train/status?session_id=' + sessionId).then(r => r.json()).then(d => {
+            if (!d.error) updateSessionDetailHeader(sessionId, d);
+        });
+        return;
+    }
+    document.getElementById('sessionDetailName').textContent = data.name || sessionId;
+    const badge = document.getElementById('sessionDetailStatus');
+    badge.className = 'status-badge ' + (data.status || 'idle');
+    badge.textContent = data.status || 'idle';
+
+    const stopBtn = document.getElementById('sessionStopBtn');
+    const resumeBtn = document.getElementById('sessionResumeBtn');
+    const removeBtn = document.getElementById('sessionRemoveBtn');
+    if (data.status === 'running' || data.status === 'starting') {
+        stopBtn.style.display = 'inline-block';
+        resumeBtn.style.display = 'none';
+        removeBtn.style.display = 'none';
+    } else {
+        stopBtn.style.display = 'none';
+        // Show resume for stopped/error sessions
+        if (data.status === 'stopped' || data.status === 'error') {
+            resumeBtn.style.display = 'inline-block';
+        } else {
+            resumeBtn.style.display = 'none';
+        }
+        removeBtn.style.display = 'inline-block';
+    }
+
+    const progressEl = document.getElementById('sessionDetailProgress');
+    if (data.progress && data.progress.current_epoch) {
+        progressEl.textContent = 'Epoch ' + data.progress.current_epoch + '/' + data.progress.total_epochs + ' (' + (data.progress.percent||0) + '%)';
+    } else {
+        progressEl.textContent = '';
+    }
+}
+
+function addSessionLogLine(message, type) {
+    const logEl = document.getElementById('sessionLogContent');
+    if (!logEl) return;
+    const line = document.createElement('div');
+    line.className = 'log-line ' + (type || 'info');
+    line.textContent = message;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+// --- New Training ---
+function showNewTrainingForm() {
+    _activeSessionId = null;
+    document.getElementById('sessionLogView').style.display = 'none';
+    document.getElementById('sessionEmptyState').style.display = 'none';
+    document.getElementById('newTrainForm').style.display = 'block';
+    document.querySelectorAll('.session-card').forEach(c => c.classList.remove('active'));
+}
+
+function hideNewTrainingForm() {
+    document.getElementById('newTrainForm').style.display = 'none';
+    if (!_activeSessionId) {
+        document.getElementById('sessionEmptyState').style.display = 'flex';
+    }
+}
+
+function buildTrainParamUI() {
+    const container = document.getElementById('trainParamGroups');
+    const groups = {
+        core: { label: '⚙️ Core Parameters', keys: [] },
+        lr: { label: '📈 Learning Rate', keys: [] },
+        loss: { label: '⚖️ Loss Weights', keys: [] },
+        aug: { label: '🎨 Augmentation', keys: [] },
+    };
+
+    for (const [key, schema] of Object.entries(trainParamsSchema)) {
+        if (key === 'model') continue;
+        const group = schema.group || 'core';
+        if (groups[group]) groups[group].keys.push(key);
+    }
+
+    for (const [groupId, group] of Object.entries(groups)) {
+        if (group.keys.length === 0) continue;
+        const isCore = groupId === 'core';
+        let html = '<div class="param-group">';
+        html += '<div class="param-group-header" onclick="toggleParamGroup(this)">';
+        html += '<span>' + group.label + ' (' + group.keys.length + ')</span>';
+        html += '<span class="chevron ' + (isCore ? 'open' : '') + '">▶</span>';
+        html += '</div>';
+        html += '<div class="param-group-body ' + (isCore ? 'open' : '') + '">';
+
+        for (const key of group.keys) {
+            const schema = trainParamsSchema[key];
+            const label = schema.label || key;
+            const defaultVal = schema.default;
+            const ptype = schema.type;
+
+            html += '<div class="param-row">';
+            html += '<label title="' + key + '">' + escHtml(label) + '</label>';
+
+            if (ptype === 'bool') {
+                const checked = defaultVal ? 'checked' : '';
+                html += '<input type="checkbox" id="tp_' + key + '" ' + checked + '>';
+            } else if (schema.options) {
+                html += '<select id="tp_' + key + '">';
+                schema.options.forEach(opt => {
+                    const sel = opt === defaultVal ? ' selected' : '';
+                    html += '<option value="' + opt + '"' + sel + '>' + opt + '</option>';
+                });
+                html += '</select>';
+            } else if (ptype === 'int' || ptype === 'float') {
+                const step = ptype === 'float' ? '0.001' : '1';
+                const val = defaultVal !== null && defaultVal !== undefined ? defaultVal : '';
+                html += '<input type="number" id="tp_' + key + '" value="' + val + '" step="' + step + '"';
+                if (schema.min !== undefined) html += ' min="' + schema.min + '"';
+                if (schema.max !== undefined) html += ' max="' + schema.max + '"';
+                html += '>';
+            } else {
+                html += '<input type="text" id="tp_' + key + '" value="' + (defaultVal || '') + '">';
+            }
+
+            const defDisplay = defaultVal !== null && defaultVal !== undefined ? defaultVal : 'none';
+            html += '<span class="param-default">' + defDisplay + '</span>';
+            html += '</div>';
+        }
+
+        html += '</div></div>';
+        container.innerHTML += html;
+    }
+}
+
+function toggleParamGroup(header) {
+    const chevron = header.querySelector('.chevron');
+    const body = header.nextElementSibling;
+    chevron.classList.toggle('open');
+    body.classList.toggle('open');
+}
+
+function collectTrainParams() {
+    const params = {};
+    params.model = document.getElementById('trainModel').value;
+    params.data_yaml = document.getElementById('trainDataYaml').value.trim();
+    params.session_name = (document.getElementById('trainSessionName').value.trim()) || ('Training ' + new Date().toLocaleTimeString());
+
+    for (const [key, schema] of Object.entries(trainParamsSchema)) {
+        if (key === 'model') continue;
+        const el = document.getElementById('tp_' + key);
+        if (!el) continue;
+
+        if (schema.type === 'bool') {
+            params[key] = el.checked;
+        } else if (schema.type === 'int' || schema.type === 'float') {
+            if (el.value !== '' && el.value !== String(schema.default)) {
+                params[key] = schema.type === 'int' ? parseInt(el.value) : parseFloat(el.value);
+            }
+        } else {
+            if (el.value.trim() && el.value.trim() !== String(schema.default || '')) {
+                params[key] = el.value.trim();
+            }
+        }
+    }
+    return params;
+}
+
+async function startTrainingSession() {
+    const params = collectTrainParams();
+    if (!params.data_yaml) { showToast('Please set Data YAML path', true); return; }
+
+    const res = await fetch('/api/train', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+
+    showToast('Training started: ' + data.session_name);
+    hideNewTrainingForm();
+
+    // View the new session
+    await refreshSessionList();
+    viewSession(data.session_id);
+}
+
+async function stopTrainingSession() {
+    if (!_activeSessionId) return;
+    const res = await fetch('/api/train/stop/' + _activeSessionId, { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || 'Stop requested');
+    setTimeout(() => {
+        refreshSessionList();
+        if (_activeSessionId) updateSessionDetailHeader(_activeSessionId);
+    }, 500);
+}
+
+async function removeTrainingSession() {
+    if (!_activeSessionId) return;
+    if (!confirm('Remove this training session log?')) return;
+    const res = await fetch('/api/train/remove/' + _activeSessionId, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    showToast('Session removed');
+    _activeSessionId = null;
+    document.getElementById('sessionLogView').style.display = 'none';
+    document.getElementById('sessionEmptyState').style.display = 'flex';
+    await refreshSessionList();
+}
+
+async function resumeTrainingSession() {
+    if (!_activeSessionId) return;
+    const res = await fetch('/api/train/resume/' + _activeSessionId, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    showToast('Training resumed: ' + (data.session_name || ''));
+    setTimeout(() => {
+        refreshSessionList();
+        if (_activeSessionId) viewSession(_activeSessionId);
+    }, 500);
+}
+
+async function browseForTrainData() {
+    const input = document.getElementById('trainDataYaml');
+    const browser = document.getElementById('trainDataBrowser');
+    const current = input.value.trim();
+    let browsePath = current ? current.substring(0, current.lastIndexOf('/')) : '';
+
+    browser.style.display = 'block';
+    const res = await fetch('/api/browse', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ path: browsePath }),
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+
+    let html = '';
+    if (data.parent) {
+        html += '<div class="folder-item parent" onclick="browseTrainData(\'' +
+                data.parent.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">⬆ ..</div>';
+    }
+    // Show yaml files
+    try {
+        const dirPath = data.path;
+        // List directories
+        data.dirs.forEach(d => {
+            const full = (dirPath + '/' + d).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            html += '<div class="folder-item" onclick="browseTrainData(\'' + full + '\')">📁 ' + escHtml(d) + '</div>';
+        });
+    } catch(e) {}
+    browser.innerHTML = html;
+    // Also mark current path in input
+    input.value = data.path + '/data.yaml';
+}
+
+function browseTrainData(path) {
+    document.getElementById('trainDataYaml').value = path + '/data.yaml';
+    const browser = document.getElementById('trainDataBrowser');
+    fetch('/api/browse', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ path }),
+    }).then(r => r.json()).then(data => {
+        if (data.error) return;
+        let html = '';
+        if (data.parent) {
+            html += '<div class="folder-item parent" onclick="browseTrainData(\'' +
+                    data.parent.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">⬆ ..</div>';
+        }
+        data.dirs.forEach(d => {
+            const full = (data.path + '/' + d).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            html += '<div class="folder-item" onclick="browseTrainData(\'' + full + '\')">📁 ' + escHtml(d) + '</div>';
+        });
+        browser.innerHTML = html;
+        document.getElementById('trainDataYaml').value = data.path + '/data.yaml';
+    });
+}
+
+// =============================================================================
+// Annotator Init
+// =============================================================================
+function initAnnotator() {
+    canvas = document.getElementById('annotationCanvas');
+    ctx = canvas.getContext('2d');
+    setupEvents();
+    loadCurrentDirs();
+
+    if (currentRoom && currentRoom.blank) {
+        document.getElementById('blankPrompt').style.display = 'flex';
+    } else {
+        document.getElementById('blankPrompt').style.display = 'none';
+        loadImagePage(0).then(() => { if (loadedImages.length > 0) selectImage(0); });
+    }
+    updateStats();
+}
+
+// =============================================================================
+// API
+// =============================================================================
+async function loadImagePage(page) {
+    const params = new URLSearchParams({ page, per_page: PER_PAGE, filter: currentFilter, search: currentSearch });
+    const res = await fetch('/api/images?' + params);
+    const data = await res.json();
+    loadedImages = data.images;
+    totalImages = data.total;
+    totalPages = data.total_pages;
+    currentPage = page;
+    renderImageList();
+    updatePagination();
+}
+
+async function loadLabels(imageName) {
+    const res = await fetch('/api/labels/' + encodeURIComponent(imageName));
+    const data = await res.json();
+    currentLabels = data.labels || [];
+    undoStack = [];
+    selectedBoxIdx = -1;
+    hasUnsavedChanges = false;
+    renderBboxList();
+    draw();
+}
+
+async function saveLabels() {
+    if (!currentImageName) return;
+    const res = await fetch('/api/labels/' + encodeURIComponent(currentImageName), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labels: currentLabels }),
+    });
+    const data = await res.json();
+    if (data.status === 'saved') {
+        showToast('Saved ' + data.count + ' boxes');
+        hasUnsavedChanges = false;
+        const item = loadedImages.find(i => i.name === currentImageName);
+        if (item) { item.annotated = currentLabels.length > 0; item.bbox_count = currentLabels.length; }
+        if (currentUser) {
+            imageEdits[currentImageName] = { username: currentUser.username, display_name: currentUser.display_name, color: currentUser.color };
+        }
+        renderImageList();
+        updateStats();
+    } else {
+        showToast('Save failed: ' + (data.error || 'unknown'), true);
+    }
+}
+
+async function updateStats() {
+    const res = await fetch('/api/stats');
+    const stats = await res.json();
+    if (stats.cache_ready === false) {
+        document.getElementById('statsBar').textContent = stats.total_images + ' images | indexing...';
+        setTimeout(updateStats, 3000);
+    } else {
+        document.getElementById('statsBar').textContent =
+            stats.total_images + ' images | ' + stats.annotated + ' annotated | ' + stats.total_bboxes + ' boxes';
+    }
+}
+
+async function exportDataset() {
+    const btn = document.getElementById('exportBtn');
+    btn.disabled = true; btn.textContent = 'Exporting...';
+    const ratio = parseInt(document.getElementById('splitSlider').value) / 100;
+    const res = await fetch('/api/export', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ train_ratio: ratio }) });
+    const data = await res.json();
+    btn.disabled = false; btn.textContent = '📦 Export Dataset';
+    if (data.status === 'exported') { showToast('Exported! Train: ' + data.train_count + ', Valid: ' + data.valid_count); }
+    else { showToast('Export failed: ' + (data.error || 'unknown'), true); }
+}
+
+// =============================================================================
+// Image Selection
+// =============================================================================
+function selectImage(index) {
+    if (index < 0 || index >= loadedImages.length) return;
+    if (hasUnsavedChanges && currentImageName) saveLabels();
+    currentGlobalIndex = index;
+    const item = loadedImages[index];
+    currentImageName = item.name;
+    document.getElementById('imageInfo').textContent = item.name + ' (' + (currentPage * PER_PAGE + index + 1) + '/' + totalImages + ')';
+    document.getElementById('blankPrompt').style.display = 'none';
+    imgLoaded = false;
+    img.onload = () => { imgLoaded = true; imgW = img.naturalWidth; imgH = img.naturalHeight; fitToScreen(); loadLabels(item.name); };
+    img.src = '/api/image/' + encodeURIComponent(item.name);
+    renderImageList();
+    const el = document.querySelector('.image-item[data-index="' + index + '"]');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+}
+
+function applyFilter(filter) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-bar button').forEach(b => b.classList.remove('active'));
+    document.querySelector('.filter-bar button[data-filter="' + filter + '"]').classList.add('active');
+    currentGlobalIndex = -1; currentImageName = null;
+    loadImagePage(0).then(() => { if (loadedImages.length > 0) selectImage(0); });
+}
+
+// =============================================================================
+// Render
+// =============================================================================
+function renderImageList() {
+    const list = document.getElementById('imageList');
+    list.innerHTML = loadedImages.map((im, i) => {
+        const edit = imageEdits[im.name];
+        const editDot = edit ? '<div class="user-edit-dot" style="background:' + edit.color + ';" title="' + escHtml(edit.display_name || edit.username) + '"></div>' : '';
+        return '<div class="image-item ' + (i === currentGlobalIndex ? 'active' : '') +
+            '" data-index="' + i + '" onclick="selectImage(' + i + ')">' +
+            '<div class="dot ' + (im.annotated ? 'annotated' : 'empty') + '"></div>' + editDot +
+            '<div class="name">' + escHtml(im.name) + '</div>' +
+            '<div class="count">' + im.bbox_count + '</div></div>';
+    }).join('');
+}
+
+function updatePagination() {
+    document.getElementById('pageInfo').textContent = (currentPage + 1) + ' / ' + Math.max(1, totalPages);
+    document.getElementById('pageFirst').disabled = currentPage <= 0;
+    document.getElementById('pagePrev').disabled = currentPage <= 0;
+    document.getElementById('pageNext').disabled = currentPage >= totalPages - 1;
+    document.getElementById('pageLast').disabled = currentPage >= totalPages - 1;
+}
+
+function renderBboxList() {
+    const list = document.getElementById('bboxList');
+    if (currentLabels.length === 0) {
+        list.innerHTML = '<div style="padding:16px;color:#666;font-size:12px;">No boxes yet. Draw on the image.</div>';
+        return;
+    }
+    list.innerHTML = currentLabels.map((lbl, i) => {
+        const color = BBOX_COLORS[lbl.class_id % BBOX_COLORS.length];
+        return '<div class="bbox-item ' + (i === selectedBoxIdx ? 'selected' : '') +
+            '" onclick="selectBox(' + i + ')">' +
+            '<div class="bbox-color" style="background:' + color + '"></div>' +
+            '<div class="bbox-info">Class ' + lbl.class_id + ' | ' +
+            (lbl.w * 100).toFixed(1) + '% × ' + (lbl.h * 100).toFixed(1) + '%</div>' +
+            '<div class="bbox-delete" onclick="event.stopPropagation();deleteBox(' + i + ')">✕</div></div>';
+    }).join('');
+}
+
+function selectBox(idx) { selectedBoxIdx = idx; renderBboxList(); draw(); }
+function deleteBox(idx) { pushUndo(); currentLabels.splice(idx, 1); hasUnsavedChanges = true; if (selectedBoxIdx >= currentLabels.length) selectedBoxIdx = -1; renderBboxList(); draw(); }
+
+// =============================================================================
+// Canvas
+// =============================================================================
+function resizeCanvas() {
+    const container = document.getElementById('canvasContainer');
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    draw();
+}
+
+function fitToScreen() {
+    if (!imgLoaded) return;
+    const container = document.getElementById('canvasContainer');
+    scale = Math.min(container.clientWidth / imgW, container.clientHeight / imgH) * 0.95;
+    offsetX = (container.clientWidth - imgW * scale) / 2;
+    offsetY = (container.clientHeight - imgH * scale) / 2;
+    resizeCanvas();
+    document.getElementById('zoomDisplay').textContent = 'Zoom: ' + (scale * 100).toFixed(0) + '%';
+}
+
+function draw() {
+    if (!ctx || !canvas) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!imgLoaded) return;
+    ctx.drawImage(img, offsetX, offsetY, imgW * scale, imgH * scale);
+    currentLabels.forEach((lbl, i) => {
+        const color = BBOX_COLORS[lbl.class_id % BBOX_COLORS.length];
+        const x = offsetX + (lbl.cx - lbl.w / 2) * imgW * scale;
+        const y = offsetY + (lbl.cy - lbl.h / 2) * imgH * scale;
+        const w = lbl.w * imgW * scale;
+        const h = lbl.h * imgH * scale;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = i === selectedBoxIdx ? 3 : 2;
+        ctx.strokeRect(x, y, w, h);
+        ctx.fillStyle = color + '20';
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = color;
+        ctx.font = '12px monospace';
+        const label = '' + lbl.class_id;
+        ctx.fillRect(x, y - 18, ctx.measureText(label).width + 8, 18);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, x + 4, y - 5);
+        if (i === selectedBoxIdx) drawHandles(x, y, w, h, color);
+    });
+    if (drawing && drawStart && drawCurrent) {
+        const x1 = Math.min(drawStart.x, drawCurrent.x), y1 = Math.min(drawStart.y, drawCurrent.y);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+        ctx.strokeRect(x1, y1, Math.abs(drawCurrent.x - drawStart.x), Math.abs(drawCurrent.y - drawStart.y));
+        ctx.setLineDash([]);
+    }
+}
+
+function drawHandles(x, y, w, h, color) {
+    getHandlePositions(x, y, w, h).forEach(hp => {
+        ctx.fillStyle = color;
+        ctx.fillRect(hp.x - HANDLE_SIZE/2, hp.y - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+        ctx.strokeRect(hp.x - HANDLE_SIZE/2, hp.y - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+    });
+}
+
+function getHandlePositions(x, y, w, h) {
+    return [
+        {x:x, y:y, cursor:'nw-resize', name:'tl'}, {x:x+w, y:y, cursor:'ne-resize', name:'tr'},
+        {x:x, y:y+h, cursor:'sw-resize', name:'bl'}, {x:x+w, y:y+h, cursor:'se-resize', name:'br'},
+        {x:x+w/2, y:y, cursor:'n-resize', name:'tm'}, {x:x+w/2, y:y+h, cursor:'s-resize', name:'bm'},
+        {x:x, y:y+h/2, cursor:'w-resize', name:'ml'}, {x:x+w, y:y+h/2, cursor:'e-resize', name:'mr'},
+    ];
+}
+
+function canvasToYolo(cx, cy, cw, ch) { return { cx:(cx-offsetX)/(imgW*scale), cy:(cy-offsetY)/(imgH*scale), w:cw/(imgW*scale), h:ch/(imgH*scale) }; }
+function yoloToCanvas(lbl) { return { x:offsetX+(lbl.cx-lbl.w/2)*imgW*scale, y:offsetY+(lbl.cy-lbl.h/2)*imgH*scale, w:lbl.w*imgW*scale, h:lbl.h*imgH*scale }; }
+
+// =============================================================================
+// Mouse Events
+// =============================================================================
+let eventsSetup = false;
+function setupEvents() {
+    if (eventsSetup) return;
+    eventsSetup = true;
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('resize', () => { if (imgLoaded) fitToScreen(); });
+    window.addEventListener('keydown', onKeyDown);
+    document.getElementById('prevBtn').addEventListener('click', () => navigateImage(-1));
+    document.getElementById('nextBtn').addEventListener('click', () => navigateImage(1));
+    document.getElementById('saveBtn').addEventListener('click', saveLabels);
+    document.getElementById('undoBtn').addEventListener('click', undo);
+    document.getElementById('zoomFit').addEventListener('click', fitToScreen);
+    document.getElementById('exportBtn').addEventListener('click', exportDataset);
+    document.getElementById('drawTool').addEventListener('click', () => setMode('draw'));
+    document.getElementById('selectTool').addEventListener('click', () => setMode('select'));
+    document.getElementById('splitSlider').addEventListener('input', (e) => { document.getElementById('splitValue').textContent = e.target.value; });
+    document.querySelectorAll('.filter-bar button').forEach(btn => { btn.addEventListener('click', () => applyFilter(btn.dataset.filter)); });
+    let searchTimeout;
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => { currentSearch = e.target.value; loadImagePage(0).then(() => { if (loadedImages.length > 0) selectImage(0); }); }, 300);
+    });
+    document.getElementById('pageFirst').addEventListener('click', () => { loadImagePage(0).then(() => { if (loadedImages.length > 0) selectImage(0); }); });
+    document.getElementById('pagePrev').addEventListener('click', () => { if (currentPage > 0) loadImagePage(currentPage - 1).then(() => { if (loadedImages.length > 0) selectImage(0); }); });
+    document.getElementById('pageNext').addEventListener('click', () => { if (currentPage < totalPages - 1) loadImagePage(currentPage + 1).then(() => { if (loadedImages.length > 0) selectImage(0); }); });
+    document.getElementById('pageLast').addEventListener('click', () => { if (totalPages > 1) loadImagePage(totalPages - 1).then(() => { if (loadedImages.length > 0) selectImage(0); }); });
+    document.getElementById('openFolderBtn').addEventListener('click', () => {
+        if (openFolderMode === 'images_labels') { browseFolders(document.getElementById('imgDirInput').value || '', 'imgDirBrowser', 'imgDirInput'); }
+        else { browseFolders(document.getElementById('singleFolderInput').value || '', 'singleFolderBrowser', 'singleFolderInput'); }
+        openModal('openFolderModal');
+    });
+    document.getElementById('saveFolderBtn').addEventListener('click', () => {
+        browseFolders(document.getElementById('saveDirInput').value || '', 'saveDirBrowser', 'saveDirInput');
+        openModal('saveFolderModal');
+    });
+    document.getElementById('editClassesBtn').addEventListener('click', openClassEditor);
+    document.querySelectorAll('.modal-overlay').forEach(overlay => { overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('show'); }); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.show').forEach(m => m.classList.remove('show')); });
+}
+
+function onMouseDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (mode === 'select') {
+        if (selectedBoxIdx >= 0) {
+            const bx = yoloToCanvas(currentLabels[selectedBoxIdx]);
+            const handles = getHandlePositions(bx.x, bx.y, bx.w, bx.h);
+            for (const h of handles) {
+                if (Math.abs(mx-h.x) < HANDLE_SIZE && Math.abs(my-h.y) < HANDLE_SIZE) {
+                    pushUndo(); resizing = true; resizeHandle = h.name;
+                    dragStart = {x:mx, y:my, origLabel:{...currentLabels[selectedBoxIdx]}};
+                    return;
+                }
+            }
+        }
+        for (let i = currentLabels.length-1; i >= 0; i--) {
+            const bx = yoloToCanvas(currentLabels[i]);
+            if (mx >= bx.x && mx <= bx.x+bx.w && my >= bx.y && my <= bx.y+bx.h) {
+                selectedBoxIdx = i; pushUndo(); dragging = true;
+                dragStart = {x:mx, y:my, origLabel:{...currentLabels[i]}};
+                renderBboxList(); draw(); return;
+            }
+        }
+        selectedBoxIdx = -1; renderBboxList(); draw();
+    } else if (mode === 'draw') {
+        drawing = true; drawStart = {x:mx, y:my}; drawCurrent = {x:mx, y:my};
+    }
+}
+
+function onMouseMove(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (imgLoaded) { document.getElementById('coordsDisplay').textContent = 'x: ' + ((mx-offsetX)/(imgW*scale)*imgW).toFixed(0) + ', y: ' + ((my-offsetY)/(imgH*scale)*imgH).toFixed(0); }
+    if (drawing) { drawCurrent = {x:mx, y:my}; draw(); }
+    else if (dragging && selectedBoxIdx >= 0) {
+        const dx = (mx-dragStart.x)/(imgW*scale), dy = (my-dragStart.y)/(imgH*scale);
+        currentLabels[selectedBoxIdx].cx = Math.max(0,Math.min(1, dragStart.origLabel.cx+dx));
+        currentLabels[selectedBoxIdx].cy = Math.max(0,Math.min(1, dragStart.origLabel.cy+dy));
+        hasUnsavedChanges = true; draw();
+    }
+    else if (resizing && selectedBoxIdx >= 0) { resizeBox(mx, my); hasUnsavedChanges = true; draw(); }
+}
+
+function onMouseUp(e) {
+    if (drawing && drawStart && drawCurrent) {
+        const x1 = Math.min(drawStart.x, drawCurrent.x), y1 = Math.min(drawStart.y, drawCurrent.y);
+        const w = Math.abs(drawCurrent.x-drawStart.x), h = Math.abs(drawCurrent.y-drawStart.y);
+        if (w > 5 && h > 5) {
+            const yolo = canvasToYolo(x1+w/2, y1+h/2, w, h);
+            if (yolo.cx >= 0 && yolo.cy >= 0 && yolo.w > 0.005 && yolo.h > 0.005) {
+                pushUndo();
+                currentLabels.push({ class_id: parseInt(document.getElementById('classSelect').value),
+                    cx: Math.max(0,Math.min(1,yolo.cx)), cy: Math.max(0,Math.min(1,yolo.cy)),
+                    w: Math.min(1,yolo.w), h: Math.min(1,yolo.h) });
+                selectedBoxIdx = currentLabels.length - 1;
+                hasUnsavedChanges = true; renderBboxList();
+            }
+        }
+        drawing = false; drawStart = null; drawCurrent = null; draw();
+    }
+    if (dragging) { dragging = false; renderBboxList(); }
+    if (resizing) { resizing = false; resizeHandle = null; }
+}
+
+function resizeBox(mx, my) {
+    const orig = dragStart.origLabel;
+    const ob = yoloToCanvas(orig);
+    let x1=ob.x, y1=ob.y, x2=ob.x+ob.w, y2=ob.y+ob.h;
+    if (resizeHandle.includes('l')) x1=mx; if (resizeHandle.includes('r')) x2=mx;
+    if (resizeHandle.includes('t')) y1=my; if (resizeHandle.includes('b')) y2=my;
+    if (Math.abs(x2-x1)<5 || Math.abs(y2-y1)<5) return;
+    const nx1=Math.min(x1,x2), ny1=Math.min(y1,y2), nw=Math.abs(x2-x1), nh=Math.abs(y2-y1);
+    const yolo = canvasToYolo(nx1+nw/2, ny1+nh/2, nw, nh);
+    const lbl = currentLabels[selectedBoxIdx];
+    lbl.cx=Math.max(0,Math.min(1,yolo.cx)); lbl.cy=Math.max(0,Math.min(1,yolo.cy));
+    lbl.w=Math.min(1,yolo.w); lbl.h=Math.min(1,yolo.h);
+}
+
+function onWheel(e) {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = Math.max(0.1, Math.min(10, scale*delta));
+    offsetX = mx-(mx-offsetX)*(newScale/scale);
+    offsetY = my-(my-offsetY)*(newScale/scale);
+    scale = newScale;
+    document.getElementById('zoomDisplay').textContent = 'Zoom: ' + (scale*100).toFixed(0) + '%';
+    draw();
+}
+
+// =============================================================================
+// Keyboard
+// =============================================================================
+function onKeyDown(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+    if (document.getElementById('annotatorView').style.display === 'none') return;
+    if (e.key === 'a' || e.key === 'ArrowLeft') { navigateImage(-1); e.preventDefault(); }
+    if (e.key === 'd' || e.key === 'ArrowRight') { navigateImage(1); e.preventDefault(); }
+    if (e.key === 'b') setMode('draw');
+    if (e.key === 'v') setMode('select');
+    if (e.key === 'f') fitToScreen();
+    if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedBoxIdx >= 0) { deleteBox(selectedBoxIdx); e.preventDefault(); } }
+    if (e.ctrlKey && e.key === 's') { saveLabels(); e.preventDefault(); }
+    if (e.ctrlKey && e.key === 'z') { undo(); e.preventDefault(); }
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+function navigateImage(dir) {
+    const idx = currentGlobalIndex + dir;
+    if (idx >= 0 && idx < loadedImages.length) { selectImage(idx); }
+    else if (idx >= loadedImages.length && currentPage < totalPages - 1) {
+        loadImagePage(currentPage + 1).then(() => { if (loadedImages.length > 0) selectImage(0); });
+    } else if (idx < 0 && currentPage > 0) {
+        loadImagePage(currentPage - 1).then(() => { if (loadedImages.length > 0) selectImage(loadedImages.length - 1); });
+    }
+}
+
+function setMode(m) {
+    mode = m;
+    document.getElementById('drawTool').classList.toggle('active', m === 'draw');
+    document.getElementById('selectTool').classList.toggle('active', m === 'select');
+    canvas.style.cursor = m === 'draw' ? 'crosshair' : 'default';
+    document.getElementById('modeDisplay').textContent = 'Mode: ' + (m === 'draw' ? 'Draw' : 'Select');
+}
+
+function pushUndo() { undoStack.push(JSON.parse(JSON.stringify(currentLabels))); if (undoStack.length > 50) undoStack.shift(); }
+function undo() { if (!undoStack.length) return; currentLabels = undoStack.pop(); selectedBoxIdx=-1; hasUnsavedChanges=true; renderBboxList(); draw(); }
+
+function showToast(msg, isError) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'toast' + (isError ? ' error' : '');
+    t.style.display = 'block'; setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+
+function escHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// =============================================================================
+// Open Folder
+// =============================================================================
+let openFolderMode = 'images_labels';
+
+function switchOpenMode(m) {
+    openFolderMode = m;
+    const single = document.getElementById('singleFolderFields');
+    const dual = document.getElementById('dualFolderFields');
+    if (m === 'images_labels') { single.classList.add('hidden'); dual.classList.remove('hidden'); }
+    else {
+        dual.classList.add('hidden'); single.classList.remove('hidden');
+        document.getElementById('singleFolderLabel').textContent =
+            m === 'images_only' ? 'Images Folder (labels auto-created in sibling dir)' : 'Folder (contains images + labels)';
+    }
+}
+
+async function loadCurrentDirs() {
+    const res = await fetch('/api/current-dirs');
+    const data = await res.json();
+    document.getElementById('dirDisplay').textContent = 'IMG: ' + data.images_dir + '\nLBL: ' + data.labels_dir;
+    document.getElementById('imgDirInput').value = data.images_dir;
+    document.getElementById('saveDirInput').value = data.export_dir;
+}
+
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+async function browseFolders(path, targetBrowserId, targetInputId) {
+    const res = await fetch('/api/browse', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ path }) });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    const browser = document.getElementById(targetBrowserId);
+    let html = '';
+    if (data.parent) {
+        html += '<div class="folder-item parent" onclick="browseAndSet(\'' +
+                data.parent.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\',\'' + targetBrowserId + '\',\'' + targetInputId + '\')">⬆ ..</div>';
+    }
+    data.dirs.forEach(d => {
+        const full = (data.path + (data.path.endsWith('/') || data.path.endsWith('\\') ? '' : '/') + d).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        html += '<div class="folder-item" onclick="browseAndSet(\'' + full + '\',\'' + targetBrowserId + '\',\'' + targetInputId + '\')">' +
+                '📁 ' + escHtml(d) + '</div>';
+    });
+    browser.innerHTML = html;
+    document.getElementById(targetInputId).value = data.path;
+}
+
+function browseAndSet(path, browserId, inputId) {
+    document.getElementById(inputId).value = path;
+    browseFolders(path, browserId, inputId);
+}
+
+async function submitOpenFolder() {
+    let body = { mode: openFolderMode };
+    if (openFolderMode === 'images_labels') {
+        const imgDir = document.getElementById('imgDirInput').value.trim();
+        const lblDir = document.getElementById('lblDirInput').value.trim();
+        if (!imgDir) { showToast('Images directory is required', true); return; }
+        body.images_dir = imgDir; body.labels_dir = lblDir;
+    } else {
+        const folder = document.getElementById('singleFolderInput').value.trim();
+        if (!folder) { showToast('Folder path is required', true); return; }
+        body.folder = folder;
+    }
+    const res = await fetch('/api/open-folder', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    closeModal('openFolderModal');
+    showToast('Opened (' + data.mode + '): ' + data.image_count + ' images');
+    document.getElementById('blankPrompt').style.display = 'none';
+    loadCurrentDirs();
+    currentGlobalIndex = -1; currentImageName = null;
+    loadImagePage(0).then(() => { if (loadedImages.length > 0) selectImage(0); });
+    updateStats(); loadImageEdits();
+}
+
+async function submitSaveFolder() {
+    const saveDir = document.getElementById('saveDirInput').value.trim();
+    if (!saveDir) { showToast('Save directory is required', true); return; }
+    const res = await fetch('/api/save-folder', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ save_dir: saveDir }) });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    closeModal('saveFolderModal');
+    showToast('Export dir set: ' + data.save_dir);
+    loadCurrentDirs();
+}
+
+// =============================================================================
+// Class Editor
+// =============================================================================
+let editClasses = [];
+
+function openClassEditor() {
+    fetch('/api/classes').then(r => r.json()).then(data => {
+        editClasses = [...data.classes];
+        renderClassEditor();
+        openModal('classEditorModal');
+    });
+}
+
+function renderClassEditor() {
+    const list = document.getElementById('classEditorList');
+    list.innerHTML = editClasses.map((name, i) =>
+        '<div class="class-editor-row">' +
+        '<span class="class-id">' + i + '</span>' +
+        '<input type="text" value="' + escHtml(name) + '" onchange="editClasses[' + i + ']=this.value">' +
+        (editClasses.length > 1 ? '<span class="btn-del" onclick="removeClassRow(' + i + ')">✕</span>' : '') +
+        '</div>'
+    ).join('');
+}
+
+function addClassRow() { editClasses.push('new_class'); renderClassEditor(); }
+function removeClassRow(idx) { editClasses.splice(idx, 1); renderClassEditor(); }
+
+async function submitClasses() {
+    const cleaned = editClasses.map(c => c.trim()).filter(c => c);
+    if (cleaned.length === 0) { showToast('Need at least one class', true); return; }
+    const res = await fetch('/api/classes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ classes: cleaned }) });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, true); return; }
+    closeModal('classEditorModal');
+    showToast('Saved ' + data.classes.length + ' classes');
+    const sel = document.getElementById('classSelect');
+    sel.innerHTML = data.classes.map((name, i) => '<option value="' + i + '">' + i + ': ' + escHtml(name) + '</option>').join('');
+}
+
+// =============================================================================
+// Init
+// =============================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('loginPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+    document.getElementById('regPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
+    document.getElementById('createRoomName').addEventListener('keydown', (e) => { if (e.key === 'Enter') createRoom(); });
+    document.getElementById('joinRoomCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(); });
+    checkAuth();
+});
+</script>
+</body>
+</html>
