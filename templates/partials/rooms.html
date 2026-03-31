@@ -1,0 +1,139 @@
+<!-- Rooms + Training View (Main Menu) -->
+<div class="rooms-view" id="roomsView">
+  <div class="rooms-header">
+    <h1>⚡ Nexus Annotator</h1>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <div class="user-badge" id="roomsUserBadge">
+        <div class="user-dot" id="roomsUserDot"></div>
+        <span id="roomsUsername"></span>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Main Menu Tabs -->
+  <div class="main-tabs" id="mainTabs">
+    <div class="main-tab active" data-tab="rooms" onclick="switchMainTab('rooms')">
+      <span class="tab-icon">🏠</span> Rooms
+    </div>
+    <div class="main-tab" data-tab="training" onclick="switchMainTab('training')">
+      <span class="tab-icon">🚀</span> Training
+    </div>
+  </div>
+
+  <!-- Rooms Tab Content -->
+  <div class="rooms-body" id="roomsTabContent">
+    <div class="rooms-section">
+      <h2>📋 Your Rooms</h2>
+      <div class="room-list" id="roomList"><div style="color:#888; font-size:13px;">Loading...</div></div>
+    </div>
+    <div>
+      <div class="rooms-section" style="margin-bottom:16px;">
+        <h2>➕ Create Room</h2>
+        <div class="room-error" id="createRoomError"></div>
+        <input type="text" id="createRoomName" placeholder="Room name">
+        <button class="btn-room" onclick="createRoom()">Create</button>
+      </div>
+      <div class="rooms-section">
+        <h2>🔑 Join Room</h2>
+        <div class="room-error" id="joinRoomError"></div>
+        <input type="text" id="joinRoomCode" placeholder="Enter 6-char room code" maxlength="6" style="text-transform:uppercase; font-family:monospace; letter-spacing:2px;">
+        <button class="btn-room" onclick="joinRoom()">Join</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Training Tab Content -->
+  <div class="training-body" id="trainingTabContent" style="display:none;">
+    <!-- Sticky Training Toolbar -->
+    <div class="training-toolbar">
+      <button class="btn-new-train" onclick="showNewTrainingForm()">➕ New Training</button>
+      <div class="gpu-info" id="gpuInfoBar">
+        <span>GPU:</span>
+        <span id="gpuInfoText">Loading...</span>
+        <div class="gpu-bar-wrap"><div class="gpu-bar low" id="gpuBar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <!-- Main training content: session list + detail -->
+    <div class="training-content">
+      <!-- Session List (left panel) -->
+      <div class="session-list-panel">
+        <div class="session-list-header">TRAINING SESSIONS</div>
+        <div class="session-list" id="sessionList">
+          <div class="session-list-empty" id="sessionListEmpty">No training sessions yet.<br>Click ➕ New Training to start.</div>
+        </div>
+      </div>
+
+      <!-- Session Detail (right panel) -->
+      <div class="session-detail" id="sessionDetail">
+        <!-- New Training Form (hidden by default) -->
+        <div id="newTrainForm" style="display:none; padding:20px; overflow-y:auto; flex:1;">
+          <h3 style="color:#e94560; margin-bottom:16px;">🚀 New Training Session</h3>
+          <div class="new-train-config">
+            <div class="new-train-row">
+              <div class="new-train-section">
+                <label>📝 Session Name</label>
+                <input type="text" id="trainSessionName" placeholder="e.g. Tugboat v1 experiment">
+              </div>
+              <div class="new-train-section">
+                <label>📁 Data YAML Path</label>
+                <input type="text" id="trainDataYaml" placeholder="/path/to/data.yaml">
+                <button class="btn-browse" onclick="browseForTrainData()">Browse...</button>
+                <div class="folder-browser" id="trainDataBrowser" style="display:none;"></div>
+              </div>
+              <div class="new-train-section">
+                <label>🧠 Model</label>
+                <select id="trainModel">
+                  <option value="yolo26n.pt">YOLO26n (nano - fastest)</option>
+                  <option value="yolo26s.pt">YOLO26s (small)</option>
+                  <option value="yolo26m.pt">YOLO26m (medium)</option>
+                  <option value="yolo26l.pt">YOLO26l (large)</option>
+                  <option value="yolo11n.pt">YOLO11n (nano)</option>
+                  <option value="yolo11s.pt">YOLO11s (small)</option>
+                  <option value="yolo11m.pt">YOLO11m (medium)</option>
+                  <option value="yolo11l.pt">YOLO11l (large)</option>
+                  <option value="yolo11x.pt">YOLO11x (extra-large)</option>
+                  <option value="yolov8n.pt">YOLOv8n (nano)</option>
+                  <option value="yolov8s.pt">YOLOv8s (small)</option>
+                  <option value="yolov8m.pt">YOLOv8m (medium)</option>
+                  <option value="yolov8l.pt">YOLOv8l (large)</option>
+                  <option value="yolov8x.pt">YOLOv8x (extra-large)</option>
+                </select>
+              </div>
+            </div>
+            <!-- Parameter Groups -->
+            <div class="param-groups-row" id="trainParamGroups"></div>
+          </div>
+          <div style="margin-top:16px; display:flex; gap:8px;">
+            <button style="padding:10px 24px; background:#4caf50; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold;" onclick="startTrainingSession()">🚀 Start Training</button>
+            <button style="padding:10px 24px; background:#333; color:#aaa; border:1px solid #555; border-radius:6px; cursor:pointer; font-size:13px;" onclick="hideNewTrainingForm()">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Session Log View (hidden by default) -->
+        <div id="sessionLogView" style="display:none; flex-direction:column; overflow:hidden; flex:1;">
+          <div class="session-detail-header">
+            <span class="session-title" id="sessionDetailName">—</span>
+            <span class="status-badge idle" id="sessionDetailStatus">—</span>
+            <span class="progress-inline" id="sessionDetailProgress"></span>
+            <span class="spacer"></span>
+            <button class="btn-stop-session" id="sessionStopBtn" onclick="stopTrainingSession()" style="display:none;">⏹ Force Stop</button>
+            <button class="btn-stop-session" id="sessionResumeBtn" onclick="resumeTrainingSession()" style="display:none; background:#ff9800;">▶ Continue</button>
+            <button class="btn-stop-session" id="sessionRemoveBtn" onclick="removeTrainingSession()" style="background:#666;">🗑 Remove</button>
+          </div>
+          <div class="session-log" id="sessionLogContent"></div>
+          <div class="train-chart-container" id="trainChartContainer" style="display:none;">
+            <canvas class="train-chart-canvas" id="trainChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="session-empty" id="sessionEmptyState">
+          <div class="big-icon">🚀</div>
+          <p>Select a session or create a new training</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

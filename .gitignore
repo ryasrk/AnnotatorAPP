@@ -1,3 +1,5 @@
 *.db
 *.pt
 __pycache__/
+app_old.py
+templates/index_old.html

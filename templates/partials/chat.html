@@ -1,0 +1,23 @@
+<!-- Chat Toggle Button (visible in annotator view) -->
+<button class="chat-toggle" id="chatToggle" onclick="toggleChat()">
+  💬
+  <span class="unread-badge" id="chatUnread" style="display:none;">0</span>
+</button>
+
+<!-- Chat Panel -->
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header">
+    <span class="chat-title" id="chatTitle">💬 Room Chat</span>
+    <button class="btn-close-chat" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-tabs">
+    <div class="chat-tab active" data-chat="global" onclick="switchChatTab('global')">🌐 Global</div>
+    <div class="chat-tab" data-chat="members" onclick="switchChatTab('members')">👥 Members</div>
+  </div>
+  <div class="chat-members-list" id="chatMembersList"></div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input-bar" id="chatInputBar">
+    <input type="text" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChatMessage()">
+    <button onclick="sendChatMessage()">Send</button>
+  </div>
+</div>

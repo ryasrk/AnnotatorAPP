@@ -1,0 +1,142 @@
+<!-- Annotator View -->
+<div class="annotator-view" id="annotatorView">
+  <div class="annotator-topbar">
+    <button class="btn-back" onclick="leaveRoom()">◀ Rooms</button>
+    <span>Room:</span>
+    <span class="room-badge" id="topbarRoomCode">---</span>
+    <span id="topbarRoomName" style="color:#ccc;"></span>
+    <div class="spacer"></div>
+    <div class="members-list" id="topbarMembers"></div>
+    <div class="user-indicator">
+      <div class="dot" id="topbarUserDot"></div>
+      <span id="topbarUsername"></span>
+    </div>
+    <div class="ws-indicator" id="wsIndicator" title="WebSocket connected"></div>
+  </div>
+  <div class="annotator-body">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h1>⚡ Nexus Annotator</h1>
+        <div class="stats" id="statsBar">Loading...</div>
+      </div>
+      <div style="padding:6px 16px; display:flex; gap:4px;">
+        <button class="tool-btn" style="flex:1; font-size:11px;" id="openFolderBtn" title="Open image folder">📂 Open</button>
+        <button class="tool-btn" style="flex:1; font-size:11px;" onclick="toggleBatchMode()" title="Multi-select mode">☑ Batch</button>
+        <button class="tool-btn" style="flex:1; font-size:11px;" onclick="openSettingsModal()" title="Settings">⚙ Settings</button>
+      </div>
+      <div class="dir-display" id="dirDisplay">Loading...</div>
+      <div class="user-legend" id="userLegend" style="display:none;">
+        <div class="user-legend-title">Editor colors:</div>
+        <div id="userLegendItems"></div>
+      </div>
+      <div class="filter-bar">
+        <button class="active" data-filter="all">All</button>
+        <button data-filter="annotated">Annotated</button>
+        <button data-filter="unannotated">Empty</button>
+        <button data-filter="assigned">Assigned</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search images...">
+      </div>
+      <div class="sort-bar">
+        <label>Sort:</label>
+        <select id="sortSelect" onchange="changeSortOrder()">
+          <option value="name-asc">Name A→Z</option>
+          <option value="name-desc">Name Z→A</option>
+          <option value="annotated-first">Annotated First</option>
+          <option value="unannotated-first">Unannotated First</option>
+          <option value="boxes-desc">Most Boxes</option>
+          <option value="boxes-asc">Fewest Boxes</option>
+        </select>
+      </div>
+      <div class="batch-toolbar" id="batchToolbar">
+        <span>Selected: <span class="batch-count" id="batchCount">0</span></span>
+        <button onclick="batchSelectAll()">All</button>
+        <button onclick="batchSelectNone()">None</button>
+        <button onclick="batchDeleteLabels()" title="Delete labels for selected">🗑 Labels</button>
+        <button onclick="openBatchReassign()" title="Reassign class">🔄 Class</button>
+        <button onclick="openBatchAssign()" title="Assign to member">👤 Assign</button>
+      </div>
+      <div class="image-list" id="imageList"></div>
+      <div class="pagination-bar" id="paginationBar">
+        <button id="pageFirst" title="First page">⏮</button>
+        <button id="pagePrev" title="Previous page">◀</button>
+        <span class="page-info" id="pageInfo">0 / 0</span>
+        <button id="pageNext" title="Next page">▶</button>
+        <button id="pageLast" title="Last page">⏭</button>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="toolbar">
+        <button class="nav-btn" id="prevBtn" title="Previous (A)">◀ Prev</button>
+        <button class="nav-btn" id="nextBtn" title="Next (D)">Next ▶</button>
+        <span class="image-info" id="imageInfo">No image selected</span>
+        <div class="tool-group">
+          <button class="tool-btn active" id="drawTool" title="Draw bbox (B)">✏️ Draw</button>
+          <button class="tool-btn" id="selectTool" title="Select bbox (V)">👆 Select</button>
+          <button class="tool-btn" id="zoomFit" title="Fit to screen (F)">🔍 Fit</button>
+        </div>
+        <button class="tool-btn" id="saveBtn" title="Save (Ctrl+S)">💾 Save</button>
+        <button class="tool-btn" id="undoBtn" title="Undo (Ctrl+Z)">↩ Undo</button>
+      </div>
+      <div class="canvas-container" id="canvasContainer">
+        <canvas id="annotationCanvas"></canvas>
+        <div class="blank-prompt" id="blankPrompt" style="display:none; position:absolute;">
+          <div class="big-icon">📂</div>
+          <p>No images loaded. Open a folder to start annotating.</p>
+          <button onclick="document.getElementById('openFolderBtn').click()">Open Folder</button>
+        </div>
+      </div>
+      <div class="status-bar">
+        <span id="coordsDisplay">x: 0, y: 0</span>
+        <span id="zoomDisplay">Zoom: 100%</span>
+        <span id="modeDisplay">Mode: Draw</span>
+      </div>
+      <div class="inference-toolbar" id="inferenceToolbar">
+        <span>🔮 Inference:</span>
+        <select id="inferenceModelSelect"><option value="">Select model...</option></select>
+        <label>Conf: <input type="range" id="inferenceConfSlider" min="5" max="95" value="25" style="width:60px;" oninput="document.getElementById('inferenceConfVal').textContent=this.value+'%'"><span id="inferenceConfVal">25%</span></label>
+        <button onclick="runInference()" style="background:#4caf50; color:#fff; border:none; border-radius:3px; padding:2px 8px; cursor:pointer;">▶ Run</button>
+        <button onclick="clearInference()">✕ Clear</button>
+        <button onclick="acceptInference()" title="Accept detections as labels">✅ Accept</button>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div class="panel-section">
+        <h3>Current Class <span style="float:right;cursor:pointer;font-size:11px;color:#888;" id="editClassesBtn">✏️ Edit</span></h3>
+        <select class="class-select" id="classSelect">
+          {% for name in class_names %}
+          <option value="{{ loop.index0 }}">{{ loop.index0 }}: {{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="panel-section"><h3>Bounding Boxes</h3></div>
+      <div class="bbox-list" id="bboxList"><div style="padding:16px;color:#666;font-size:12px;">No boxes yet</div></div>
+
+      <div class="panel-section">
+        <h3>Assign <span id="assigneeBadge" style="font-size:10px; color:#888;"></span></h3>
+        <div id="assignMemberList" style="max-height:200px; overflow-y:auto; font-size:11px;"></div>
+        <button class="tool-btn" style="font-size:10px; margin-top:6px; width:100%;" onclick="distributeAssignments()">Set Assignments</button>
+      </div>
+      <div class="panel-section">
+        <h3>Quality <span style="float:right;cursor:pointer;font-size:11px;color:#888;" onclick="openQualityMetrics()">📊 Details</span></h3>
+        <div id="qualitySummary" style="font-size:11px; color:#888; padding:4px 0;">Click Details to analyze</div>
+      </div>
+      <div class="panel-section">
+        <h3>Shortcuts <span style="float:right;cursor:pointer;font-size:11px;color:#888;" onclick="openModal('shortcutsModal')">? Full list</span></h3>
+        <div class="shortcuts">
+          <kbd>B</kbd> Draw &nbsp; <kbd>V</kbd> Select &nbsp; <kbd>F</kbd> Fit<br>
+          <kbd>A</kbd>/<kbd>D</kbd> Prev/Next &nbsp; <kbd>Del</kbd> Delete<br>
+          <kbd>Ctrl+S</kbd> Save &nbsp; <kbd>Ctrl+Z</kbd> Undo<br>
+          <kbd>?</kbd> All shortcuts &nbsp; <kbd>I</kbd> Dashboard<br>
+          <kbd>P</kbd> Inference &nbsp; <kbd>Q</kbd> Quality &nbsp; <kbd>M</kbd> Batch
+        </div>
+      </div>
+      <div class="export-section">
+        <button class="export-btn" onclick="openSaveExportModal()">💾 Save & Export</button>
+      </div>
+    </div>
+  </div>
+</div>

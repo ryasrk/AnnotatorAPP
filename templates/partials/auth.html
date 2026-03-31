@@ -1,0 +1,22 @@
+<!-- Login / Register View -->
+<div class="auth-view" id="loginView">
+  <div class="auth-card">
+    <h1>⚡ Nexus Annotator</h1>
+    <div class="subtitle">Multi-user YOLO Annotation & Training Platform</div>
+    <div id="loginForm">
+      <div class="auth-error" id="loginError"></div>
+      <input type="text" id="loginUsername" placeholder="Username" autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+      <button class="btn-auth" onclick="doLogin()">Login</button>
+      <div class="switch-link" onclick="showRegister()">Don't have an account? <span>Register</span></div>
+    </div>
+    <div id="registerForm" style="display:none;">
+      <div class="auth-error" id="registerError"></div>
+      <input type="text" id="regUsername" placeholder="Username (3+ chars)">
+      <input type="text" id="regDisplayName" placeholder="Display Name (optional)">
+      <input type="password" id="regPassword" placeholder="Password (4+ chars)">
+      <button class="btn-auth" onclick="doRegister()">Create Account</button>
+      <div class="switch-link" onclick="showLogin()">Already have an account? <span>Login</span></div>
+    </div>
+  </div>
+</div>

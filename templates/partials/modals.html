@@ -1,0 +1,220 @@
+<!-- Open Folder Modal -->
+<div class="modal-overlay" id="openFolderModal">
+  <div class="modal">
+    <h2>📂 Open Folder</h2>
+    <div class="mode-selector">
+      <label><input type="radio" name="openMode" value="images_only" onchange="switchOpenMode('images_only')"> [Images] only</label>
+      <label><input type="radio" name="openMode" value="images_labels" checked onchange="switchOpenMode('images_labels')"> [Images, Labels]</label>
+      <label><input type="radio" name="openMode" value="mixed" onchange="switchOpenMode('mixed')"> [Mixed] folder</label>
+    </div>
+    <div class="mode-fields hidden" id="singleFolderFields">
+      <label id="singleFolderLabel">Folder</label>
+      <input type="text" id="singleFolderInput" placeholder="/path/to/folder">
+      <div class="folder-browser" id="singleFolderBrowser"></div>
+    </div>
+    <div class="mode-fields" id="dualFolderFields">
+      <label>Images Directory</label>
+      <input type="text" id="imgDirInput" placeholder="/path/to/images">
+      <div class="folder-browser" id="imgDirBrowser"></div>
+      <label>Labels Directory (optional — auto-detects sibling "labels" folder)</label>
+      <input type="text" id="lblDirInput" placeholder="/path/to/labels">
+      <div class="folder-browser" id="lblDirBrowser"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('openFolderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitOpenFolder()">Open</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal" style="min-width:400px; max-width:500px;">
+    <h2>⚙ Settings</h2>
+    <div class="panel-section" style="border:none; padding:0;">
+      <h3 style="font-size:12px; color:#e94560; margin-bottom:8px;">Room</h3>
+      <div style="font-size:12px; color:#ccc; margin-bottom:8px;">
+        <div>Name: <span id="settingsRoomName" style="color:#e0e0e0; font-weight:bold;"></span></div>
+        <div>Code: <span id="settingsRoomCode" style="color:#e94560; font-family:monospace;"></span></div>
+      </div>
+      <div style="border-top:1px solid #0f3460; padding-top:12px; margin-top:12px;">
+        <h3 style="font-size:12px; color:#e94560; margin-bottom:8px;">Danger Zone</h3>
+        <button class="btn" style="background:#4a0f0f; color:#e94560; border-color:#e94560; width:100%;" onclick="confirmDeleteRoom()">🗑 Delete Room</button>
+        <p style="font-size:10px; color:#666; margin-top:4px;">Only the room creator can delete a room. This cannot be undone.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('settingsModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Room Confirmation Modal -->
+<div class="modal-overlay" id="deleteRoomModal">
+  <div class="modal" style="min-width:380px; max-width:440px; text-align:center;">
+    <h2 style="color:#e94560;">🗑 Delete Room</h2>
+    <p style="font-size:13px; color:#ccc; margin:12px 0;">Are you sure you want to <strong style="color:#e94560;">permanently delete</strong> this room?</p>
+    <p style="font-size:12px; color:#888; margin-bottom:8px;">All annotations, assignments, and chat messages will be lost.</p>
+    <p style="font-size:12px; color:#888; margin-bottom:16px;">Type the room name to confirm:</p>
+    <input type="text" id="deleteRoomConfirmInput" placeholder="Room name" style="width:100%; padding:8px 10px; border:1px solid #e94560; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px; text-align:center; margin-bottom:12px;">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('deleteRoomModal')">Cancel</button>
+      <button class="btn" id="deleteRoomBtn" style="background:#4a0f0f; color:#e94560; border-color:#e94560;" onclick="executeDeleteRoom()">Delete Forever</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save & Export Modal -->
+<div class="modal-overlay" id="saveExportModal">
+  <div class="modal" style="min-width:500px; max-width:600px;">
+    <h2>💾 Save & Export</h2>
+    <label>Export Directory</label>
+    <input type="text" id="saveDirInput" placeholder="/path/to/export">
+    <div class="folder-browser" id="saveDirBrowser"></div>
+    <label style="margin-top:12px;">Export Format</label>
+    <select id="exportFormatSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+      <option value="yolo">YOLO (txt labels + data.yaml)</option>
+      <option value="coco">COCO (JSON annotations)</option>
+      <option value="voc">Pascal VOC (XML annotations)</option>
+    </select>
+    <label style="margin-top:12px;">Train/Valid split: <span id="splitValue">80</span>%</label>
+    <input type="range" id="splitSlider" min="50" max="95" value="80" oninput="document.getElementById('splitValue').textContent=this.value">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('saveExportModal')">Cancel</button>
+      <button class="btn" onclick="submitSaveFolder()">Set Path Only</button>
+      <button class="btn btn-primary" id="exportBtn" onclick="exportDataset()">📦 Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Class Editor Modal -->
+<div class="modal-overlay" id="classEditorModal">
+  <div class="modal">
+    <h2>✏️ Edit Classes</h2>
+    <p style="font-size:12px; color:#888; margin-bottom:12px;">Define class IDs and names for YOLO annotations. ID = row index (0-based).</p>
+    <div class="class-editor-list" id="classEditorList"></div>
+    <button class="btn-add-class" onclick="addClassRow()">+ Add Class</button>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('classEditorModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitClasses()">Save Classes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shortcuts Modal -->
+<div class="modal-overlay" id="shortcutsModal">
+  <div class="modal shortcuts-modal">
+    <h2>⌨️ Keyboard Shortcuts</h2>
+    <div class="shortcut-grid">
+      <div class="shortcut-section">Navigation</div>
+      <div class="shortcut-row"><kbd>A</kbd> / <kbd>←</kbd> <span>Previous image</span></div>
+      <div class="shortcut-row"><kbd>D</kbd> / <kbd>→</kbd> <span>Next image</span></div>
+      <div class="shortcut-row"><kbd>W</kbd> <span>Previous page</span></div>
+      <div class="shortcut-row"><kbd>S</kbd> <span>Next page (when not in input)</span></div>
+      <div class="shortcut-section">Annotation</div>
+      <div class="shortcut-row"><kbd>B</kbd> <span>Draw mode</span></div>
+      <div class="shortcut-row"><kbd>V</kbd> <span>Select mode</span></div>
+      <div class="shortcut-row"><kbd>F</kbd> <span>Fit image to screen</span></div>
+      <div class="shortcut-row"><kbd>Del</kbd> <span>Delete selected box</span></div>
+      <div class="shortcut-row"><kbd>Ctrl+S</kbd> <span>Save labels</span></div>
+      <div class="shortcut-row"><kbd>Ctrl+Z</kbd> <span>Undo last action</span></div>
+      <div class="shortcut-section">Panels</div>
+      <div class="shortcut-row"><kbd>?</kbd> <span>Show this help</span></div>
+      <div class="shortcut-row"><kbd>C</kbd> <span>Toggle chat panel</span></div>
+      <div class="shortcut-row"><kbd>I</kbd> <span>Open dashboard</span></div>
+      <div class="shortcut-row"><kbd>P</kbd> <span>Toggle inference toolbar</span></div>
+      <div class="shortcut-row"><kbd>Q</kbd> <span>Quality metrics</span></div>
+      <div class="shortcut-row"><kbd>M</kbd> <span>Toggle batch/multi-select</span></div>
+      <div class="shortcut-row"><kbd>1-9</kbd> <span>Select class by number</span></div>
+      <div class="shortcut-row"><kbd>Esc</kbd> <span>Close modal / deselect</span></div>
+      <div class="shortcut-row"><kbd>E</kbd> <span>Quick export dataset</span></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeModal('shortcutsModal')">Got it!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard Modal -->
+<div class="modal-overlay" id="dashboardModal">
+  <div class="modal dashboard-modal">
+    <h2>📊 Dashboard</h2>
+    <div class="dash-grid" id="dashCards"></div>
+    <h3 style="font-size:12px; color:#e94560; margin:8px 0;">Class Distribution</h3>
+    <div id="dashClassDist"></div>
+    <h3 style="font-size:12px; color:#e94560; margin:12px 0;">Member Contributions</h3>
+    <div id="dashMemberStats" class="dash-member-stats"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('dashboardModal')">Close</button>
+      <button class="btn btn-primary" onclick="refreshDashboard()">🔄 Refresh</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dataset Split Modal -->
+<div class="modal-overlay" id="splitModal">
+  <div class="modal">
+    <h2>📂 Dataset Split</h2>
+    <p style="font-size:12px; color:#888; margin-bottom:8px;">Split annotated images into train, validation, and test sets.</p>
+    <div style="margin:12px 0;">
+      <label>Train: <span id="splitTrainVal">70</span>%</label>
+      <input type="range" id="splitTrainSlider" min="50" max="90" value="70" oninput="updateSplitPreview()">
+      <label>Val: <span id="splitValVal">20</span>%</label>
+      <input type="range" id="splitValSlider" min="5" max="40" value="20" oninput="updateSplitPreview()">
+      <label>Test: <span id="splitTestVal">10</span>%</label>
+    </div>
+    <div class="split-preview" id="splitPreview"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('splitModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="executeSplit()">📦 Export Split</button>
+    </div>
+  </div>
+</div>
+
+<!-- Quality Metrics Modal -->
+<div class="modal-overlay" id="qualityModal">
+  <div class="modal" style="max-width:520px;">
+    <h2>📊 Annotation Quality Metrics</h2>
+    <div class="quality-panel" id="qualityContent">
+      <p style="color:#888;">Loading...</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('qualityModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Reassign Class Modal -->
+<div class="modal-overlay" id="batchReassignModal">
+  <div class="modal" style="max-width:360px;">
+    <h2>🔄 Reassign Class</h2>
+    <p style="font-size:12px; color:#888;">Change class ID for selected images.</p>
+    <div style="margin:12px 0; display:flex; gap:8px; align-items:center;">
+      <label style="font-size:12px;">From:</label>
+      <select id="reassignFromClass" style="flex:1; padding:4px; background:#16213e; color:#ccc; border:1px solid #0f3460; border-radius:3px;"></select>
+      <label style="font-size:12px;">→ To:</label>
+      <select id="reassignToClass" style="flex:1; padding:4px; background:#16213e; color:#ccc; border:1px solid #0f3460; border-radius:3px;"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('batchReassignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="executeBatchReassign()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Assign Modal -->
+<div class="modal-overlay" id="batchAssignModal">
+  <div class="modal" style="max-width:360px;">
+    <h2>👤 Assign Images</h2>
+    <p style="font-size:12px; color:#888;">Assign selected images to a team member.</p>
+    <div style="margin:12px 0;">
+      <select id="batchAssignUser" style="width:100%; padding:6px; background:#16213e; color:#ccc; border:1px solid #0f3460; border-radius:4px;">
+        <option value="">Unassign</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('batchAssignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="executeBatchAssign()">Assign</button>
+    </div>
+  </div>
+</div>
