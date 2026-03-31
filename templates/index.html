@@ -61,6 +61,46 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
 .room-card .room-name { font-size:14px; font-weight:bold; }
 .room-card .room-meta { font-size:11px; color:#888; margin-top:2px; }
 .room-card .room-code-badge { background:#0f3460; padding:4px 8px; border-radius:4px; font-size:11px; font-family:monospace; color:#e94560; }
+.room-card .online-dots { display:flex; gap:2px; margin-top:4px; align-items:center; }
+.room-card .online-dot { width:8px; height:8px; border-radius:50%; border:1px solid rgba(0,0,0,0.3); }
+.room-card .online-count { font-size:10px; color:#4caf50; margin-left:4px; }
+
+/* =============================================================================
+   Chat Panel (inside Annotator)
+   ============================================================================= */
+.chat-toggle { position:fixed; bottom:16px; right:16px; width:48px; height:48px; border-radius:50%; background:#e94560; color:#fff; border:none; cursor:pointer; font-size:20px; z-index:1000; box-shadow:0 2px 8px rgba(0,0,0,0.4); display:none; }
+.chat-toggle:hover { background:#c73e54; }
+.chat-toggle .unread-badge { position:absolute; top:-4px; right:-4px; width:18px; height:18px; border-radius:50%; background:#4caf50; color:#fff; font-size:10px; font-weight:bold; display:flex; align-items:center; justify-content:center; }
+
+.chat-panel { position:fixed; bottom:72px; right:16px; width:340px; height:480px; background:#12122a; border:1px solid #0f3460; border-radius:12px; display:none; flex-direction:column; overflow:hidden; z-index:999; box-shadow:0 4px 20px rgba(0,0,0,0.5); }
+.chat-panel.open { display:flex; }
+.chat-header { padding:10px 14px; background:#16213e; border-bottom:1px solid #0f3460; display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.chat-header .chat-title { font-size:13px; font-weight:bold; color:#e0e0e0; flex:1; }
+.chat-header .btn-close-chat { background:none; border:none; color:#888; cursor:pointer; font-size:16px; }
+.chat-tabs { display:flex; border-bottom:1px solid #0f3460; flex-shrink:0; }
+.chat-tab { flex:1; padding:8px; text-align:center; font-size:11px; color:#888; cursor:pointer; border-bottom:2px solid transparent; }
+.chat-tab.active { color:#e94560; border-bottom-color:#e94560; }
+.chat-tab:hover { color:#ccc; }
+
+.chat-members-list { display:none; overflow-y:auto; flex:1; }
+.chat-members-list.visible { display:block; }
+.chat-member-item { padding:8px 14px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:#ccc; }
+.chat-member-item:hover { background:#1a1a3e; }
+.chat-member-item .member-color { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.chat-member-item .online-indicator { width:6px; height:6px; border-radius:50%; background:#4caf50; margin-left:auto; flex-shrink:0; }
+
+.chat-messages { flex:1; overflow-y:auto; padding:8px 12px; display:flex; flex-direction:column; gap:4px; }
+.chat-msg { max-width:85%; padding:6px 10px; border-radius:8px; font-size:12px; line-height:1.4; word-break:break-word; }
+.chat-msg.self { align-self:flex-end; background:#0f3460; color:#e0e0e0; }
+.chat-msg.other { align-self:flex-start; background:#1a1a2e; color:#e0e0e0; }
+.chat-msg .msg-sender { font-size:10px; font-weight:bold; margin-bottom:2px; }
+.chat-msg .msg-time { font-size:9px; color:#666; margin-top:2px; text-align:right; }
+
+.chat-input-bar { padding:8px 10px; border-top:1px solid #0f3460; display:flex; gap:6px; flex-shrink:0; }
+.chat-input-bar input { flex:1; padding:7px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:16px; font-size:12px; outline:none; }
+.chat-input-bar input:focus { border-color:#e94560; }
+.chat-input-bar button { padding:7px 14px; background:#e94560; color:#fff; border:none; border-radius:16px; cursor:pointer; font-size:12px; font-weight:bold; }
+.chat-input-bar button:hover { background:#c73e54; }
 
 /* =============================================================================
    Training View
@@ -559,6 +599,30 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
 
 <div class="toast" id="toast"></div>
 
+<!-- Chat Toggle Button (visible in annotator view) -->
+<button class="chat-toggle" id="chatToggle" onclick="toggleChat()">
+  💬
+  <span class="unread-badge" id="chatUnread" style="display:none;">0</span>
+</button>
+
+<!-- Chat Panel -->
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header">
+    <span class="chat-title" id="chatTitle">💬 Room Chat</span>
+    <button class="btn-close-chat" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-tabs">
+    <div class="chat-tab active" data-chat="global" onclick="switchChatTab('global')">🌐 Global</div>
+    <div class="chat-tab" data-chat="members" onclick="switchChatTab('members')">👥 Members</div>
+  </div>
+  <div class="chat-members-list" id="chatMembersList"></div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input-bar" id="chatInputBar">
+    <input type="text" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChatMessage()">
+    <button onclick="sendChatMessage()">Send</button>
+  </div>
+</div>
+
 <!-- Open Folder Modal -->
 <div class="modal-overlay" id="openFolderModal">
   <div class="modal">
@@ -709,6 +773,39 @@ function initSocket() {
         refreshRoomMembers();
     });
 
+    // Online users update
+    socket.on('online_users', (data) => {
+        _roomOnlineUsers = data.users || [];
+        updateChatMembersList();
+    });
+
+    // Chat message
+    socket.on('chat_message', (data) => {
+        if (!currentRoom || data.room_id !== currentRoom.room_id) return;
+        const panel = document.getElementById('chatPanel');
+        const isOpen = panel.classList.contains('open');
+
+        // If it's a DM, only show if we're viewing that DM tab
+        if (data.msg_type === 'dm') {
+            if (_chatDmTarget && (data.sender_id === _chatDmTarget || data.sender_id === currentUser.id)) {
+                appendChatMessage(data);
+            }
+            if (!isOpen || !_chatDmTarget) {
+                _chatUnreadCount++;
+                updateChatUnread();
+            }
+        } else {
+            // Global message
+            if (!_chatDmTarget) {
+                appendChatMessage(data);
+            }
+            if (!isOpen || _chatDmTarget) {
+                _chatUnreadCount++;
+                updateChatUnread();
+            }
+        }
+    });
+
     // Training events
     socket.on('train_log', (data) => {
         if (data.session_id === _activeSessionId) {
@@ -849,13 +946,27 @@ async function loadRooms() {
     const data = await res.json();
     const list = document.getElementById('roomList');
     if (data.rooms.length === 0) { list.innerHTML = '<div style="color:#888; font-size:13px;">No rooms yet. Create or join one!</div>'; return; }
-    list.innerHTML = data.rooms.map(r =>
-        '<div class="room-card" onclick="enterRoom(' + r.id + ')">' +
-        '<div class="room-icon">🏠</div>' +
-        '<div class="room-details"><div class="room-name">' + escHtml(r.name) + '</div>' +
-        '<div class="room-meta">by ' + escHtml(r.creator_name || 'unknown') + ' · ' + r.member_count + ' members</div></div>' +
-        '<div class="room-code-badge">' + escHtml(r.code) + '</div></div>'
-    ).join('');
+
+    // Fetch online counts
+    let onlineCounts = {};
+    try {
+        const ocRes = await fetch('/api/rooms/online-counts');
+        const ocData = await ocRes.json();
+        onlineCounts = ocData.counts || {};
+    } catch(e) {}
+
+    list.innerHTML = data.rooms.map(r => {
+        const onlineCount = onlineCounts[r.id] || 0;
+        const onlineHtml = onlineCount > 0
+            ? '<div class="online-dots"><div class="online-dot" style="background:#4caf50;"></div><span class="online-count">' + onlineCount + ' online</span></div>'
+            : '<div class="online-dots"><span style="font-size:10px;color:#666;">offline</span></div>';
+        return '<div class="room-card" onclick="enterRoom(' + r.id + ')">' +
+            '<div class="room-icon">🏠</div>' +
+            '<div class="room-details"><div class="room-name">' + escHtml(r.name) + '</div>' +
+            '<div class="room-meta">by ' + escHtml(r.creator_name || 'unknown') + ' · ' + r.member_count + ' members</div>' +
+            onlineHtml + '</div>' +
+            '<div class="room-code-badge">' + escHtml(r.code) + '</div></div>';
+    }).join('');
 }
 
 async function createRoom() {
@@ -895,12 +1006,21 @@ async function enterRoom(roomId) {
     roomMembers = infoData.members || [];
     updateTopbar();
     loadImageEdits();
+    // Show chat toggle
+    document.getElementById('chatToggle').style.display = 'block';
+    _chatUnreadCount = 0;
+    _chatDmTarget = null;
+    switchChatTab('global');
+    loadChatMessages();
 }
 
 function leaveRoom() {
     if (hasUnsavedChanges && currentImageName) saveLabels();
     if (currentRoom) leaveSocketRoom(currentRoom.room_id);
     currentRoom = null;
+    // Hide chat
+    document.getElementById('chatToggle').style.display = 'none';
+    document.getElementById('chatPanel').classList.remove('open');
     enterRoomsView();
 }
 
@@ -1351,6 +1471,177 @@ function browseTrainData(path) {
         browser.innerHTML = html;
         document.getElementById('trainDataYaml').value = data.path + '/data.yaml';
     });
+}
+
+// =============================================================================
+// Chat System
+// =============================================================================
+let _chatUnreadCount = 0;
+let _chatDmTarget = null; // null = global, user_id = DM
+let _chatDmTargetName = '';
+let _roomOnlineUsers = [];
+
+function toggleChat() {
+    const panel = document.getElementById('chatPanel');
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+        _chatUnreadCount = 0;
+        updateChatUnread();
+        document.getElementById('chatInput').focus();
+        // Scroll to bottom
+        const msgs = document.getElementById('chatMessages');
+        msgs.scrollTop = msgs.scrollHeight;
+    }
+}
+
+function updateChatUnread() {
+    const badge = document.getElementById('chatUnread');
+    if (_chatUnreadCount > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = _chatUnreadCount > 99 ? '99+' : _chatUnreadCount;
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function switchChatTab(tab) {
+    document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('.chat-tab[data-chat="' + tab + '"]').classList.add('active');
+
+    const membersList = document.getElementById('chatMembersList');
+    const messagesEl = document.getElementById('chatMessages');
+    const inputBar = document.getElementById('chatInputBar');
+
+    if (tab === 'members') {
+        membersList.classList.add('visible');
+        messagesEl.style.display = 'none';
+        inputBar.style.display = 'none';
+        loadOnlineMembers();
+    } else if (tab === 'global') {
+        _chatDmTarget = null;
+        _chatDmTargetName = '';
+        membersList.classList.remove('visible');
+        messagesEl.style.display = 'flex';
+        inputBar.style.display = 'flex';
+        document.getElementById('chatTitle').textContent = '💬 Room Chat';
+        document.getElementById('chatInput').placeholder = 'Type a message...';
+        loadChatMessages();
+    }
+}
+
+function openDmChat(userId, displayName) {
+    _chatDmTarget = userId;
+    _chatDmTargetName = displayName;
+    document.getElementById('chatMembersList').classList.remove('visible');
+    document.getElementById('chatMessages').style.display = 'flex';
+    document.getElementById('chatInputBar').style.display = 'flex';
+    document.getElementById('chatTitle').textContent = '💬 DM: ' + displayName;
+    document.getElementById('chatInput').placeholder = 'Message ' + displayName + '...';
+    // Update tabs — remove active from all, highlight none (DM mode)
+    document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
+    loadChatMessages();
+}
+
+async function loadOnlineMembers() {
+    if (!currentRoom) return;
+    try {
+        const res = await fetch('/api/rooms/' + currentRoom.room_id + '/online');
+        const data = await res.json();
+        _roomOnlineUsers = data.online || [];
+    } catch(e) {}
+    updateChatMembersList();
+}
+
+function updateChatMembersList() {
+    const list = document.getElementById('chatMembersList');
+    const onlineIds = new Set(_roomOnlineUsers.map(u => u.user_id));
+
+    // Combine room members + online users
+    const allMembers = [...roomMembers];
+    let html = '';
+    for (const m of allMembers) {
+        if (m.user_id === currentUser.id) continue; // skip self
+        const isOnline = onlineIds.has(m.user_id);
+        const name = m.display_name || m.username;
+        html += '<div class="chat-member-item" onclick="openDmChat(' + m.user_id + ', \'' + escHtml(name).replace(/'/g, "\\'") + '\')">';
+        html += '<div class="member-color" style="background:' + (m.color || '#888') + ';"></div>';
+        html += '<span>' + escHtml(name) + '</span>';
+        if (isOnline) html += '<div class="online-indicator"></div>';
+        html += '</div>';
+    }
+    if (!html) html = '<div style="padding:16px; color:#666; font-size:12px;">No other members</div>';
+    list.innerHTML = html;
+}
+
+async function loadChatMessages() {
+    if (!currentRoom) return;
+    const messagesEl = document.getElementById('chatMessages');
+    messagesEl.innerHTML = '<div style="text-align:center;color:#555;font-size:11px;padding:20px;">Loading...</div>';
+
+    let url = '/api/rooms/' + currentRoom.room_id + '/messages?type=global';
+    if (_chatDmTarget) {
+        url = '/api/rooms/' + currentRoom.room_id + '/messages?type=dm&with_user=' + _chatDmTarget;
+    }
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        messagesEl.innerHTML = '';
+        if (data.messages && data.messages.length > 0) {
+            data.messages.forEach(m => appendChatMessage(m));
+        } else {
+            messagesEl.innerHTML = '<div style="text-align:center;color:#555;font-size:11px;padding:20px;">No messages yet. Say hi! 👋</div>';
+        }
+    } catch(e) {
+        messagesEl.innerHTML = '<div style="text-align:center;color:#e94560;font-size:11px;padding:20px;">Error loading messages</div>';
+    }
+}
+
+function appendChatMessage(msg) {
+    const messagesEl = document.getElementById('chatMessages');
+    // Remove "no messages" placeholder
+    const placeholder = messagesEl.querySelector('div[style*="text-align:center"]');
+    if (placeholder) placeholder.remove();
+
+    const isSelf = msg.sender_id === currentUser.id;
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + (isSelf ? 'self' : 'other');
+
+    const senderName = msg.sender_display_name || msg.sender_username || '';
+    const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+
+    let html = '';
+    if (!isSelf) {
+        html += '<div class="msg-sender" style="color:' + (msg.sender_color || '#888') + ';">' + escHtml(senderName) + '</div>';
+    }
+    html += '<div>' + escHtml(msg.message) + '</div>';
+    html += '<div class="msg-time">' + time + '</div>';
+    div.innerHTML = html;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message || !currentRoom) return;
+
+    const body = {
+        message: message,
+        type: _chatDmTarget ? 'dm' : 'global',
+    };
+    if (_chatDmTarget) body.recipient_id = _chatDmTarget;
+
+    input.value = '';
+    try {
+        await fetch('/api/rooms/' + currentRoom.room_id + '/messages', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+    } catch(e) {
+        showToast('Failed to send message', true);
+    }
 }
 
 // =============================================================================

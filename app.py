@@ -81,6 +81,10 @@ CLASS_NAMES: list = ["tugboat"]
 _training_sessions: dict = {}  # session_id -> session dict
 _training_sessions_lock = threading.Lock()
 
+# Online user tracking: sid -> {user_id, username, display_name, color, room_id}
+_online_users: dict = {}
+_online_lock = threading.Lock()
+
 
 def _load_class_config():
     global CLASS_NAMES
@@ -145,6 +149,17 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_edits_room_image
             ON image_edits(room_id, image_name);
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_id INTEGER REFERENCES rooms(id),
+            sender_id INTEGER REFERENCES users(id),
+            recipient_id INTEGER REFERENCES users(id),
+            message TEXT NOT NULL,
+            msg_type TEXT DEFAULT 'global',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_messages_room
+            ON messages(room_id, created_at);
     """)
     db.commit()
     db.close()
@@ -896,6 +911,146 @@ def api_export():
 
 
 # =============================================================================
+# Routes: Chat & Online Users
+# =============================================================================
+
+@app.route("/api/rooms/<int:room_id>/online")
+@login_required
+def api_room_online(room_id):
+    """Get online users in a room."""
+    with _online_lock:
+        online = [
+            {"user_id": u["user_id"], "username": u["username"],
+             "display_name": u["display_name"], "color": u["color"]}
+            for u in _online_users.values()
+            if u.get("room_id") == room_id
+        ]
+    return jsonify({"online": online})
+
+
+@app.route("/api/rooms/online-counts")
+@login_required
+def api_rooms_online_counts():
+    """Get online user counts for all rooms (for room list)."""
+    with _online_lock:
+        counts = {}
+        for u in _online_users.values():
+            rid = u.get("room_id")
+            if rid:
+                counts[rid] = counts.get(rid, 0) + 1
+    return jsonify({"counts": counts})
+
+
+@app.route("/api/rooms/<int:room_id>/messages")
+@login_required
+def api_room_messages(room_id):
+    """Get chat messages for a room. ?type=global|dm&with_user=<user_id>&limit=100&before=<id>"""
+    msg_type = request.args.get("type", "global")
+    limit = min(int(request.args.get("limit", 100)), 200)
+    before_id = request.args.get("before")
+    user = _get_current_user()
+    db = get_db()
+
+    if msg_type == "dm":
+        with_user = request.args.get("with_user")
+        if not with_user:
+            db.close()
+            return jsonify({"error": "with_user required for DM"}), 400
+        query = """
+            SELECT m.id, m.message, m.msg_type, m.created_at,
+                   m.sender_id, m.recipient_id,
+                   u.username AS sender_username, u.display_name AS sender_display_name, u.color AS sender_color
+            FROM messages m JOIN users u ON m.sender_id = u.id
+            WHERE m.room_id = ? AND m.msg_type = 'dm'
+              AND ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))
+        """
+        params = [room_id, user["id"], int(with_user), int(with_user), user["id"]]
+    else:
+        query = """
+            SELECT m.id, m.message, m.msg_type, m.created_at,
+                   m.sender_id, m.recipient_id,
+                   u.username AS sender_username, u.display_name AS sender_display_name, u.color AS sender_color
+            FROM messages m JOIN users u ON m.sender_id = u.id
+            WHERE m.room_id = ? AND m.msg_type = 'global'
+        """
+        params = [room_id]
+
+    if before_id:
+        query += " AND m.id < ?"
+        params.append(int(before_id))
+
+    query += " ORDER BY m.id DESC LIMIT ?"
+    params.append(limit)
+
+    rows = db.execute(query, params).fetchall()
+    db.close()
+
+    messages = [
+        {
+            "id": r["id"], "message": r["message"], "msg_type": r["msg_type"],
+            "created_at": r["created_at"], "sender_id": r["sender_id"],
+            "recipient_id": r["recipient_id"],
+            "sender_username": r["sender_username"],
+            "sender_display_name": r["sender_display_name"],
+            "sender_color": r["sender_color"],
+        }
+        for r in reversed(rows)
+    ]
+    return jsonify({"messages": messages})
+
+
+@app.route("/api/rooms/<int:room_id>/messages", methods=["POST"])
+@login_required
+def api_room_send_message(room_id):
+    """Send a chat message. Body: {message, type: global|dm, recipient_id?}"""
+    user = _get_current_user()
+    data = request.get_json()
+    message = (data.get("message") or "").strip()
+    if not message or len(message) > 2000:
+        return jsonify({"error": "Message must be 1-2000 characters"}), 400
+
+    msg_type = data.get("type", "global")
+    recipient_id = data.get("recipient_id")
+
+    if msg_type == "dm" and not recipient_id:
+        return jsonify({"error": "recipient_id required for DM"}), 400
+
+    db = get_db()
+    cur = db.execute(
+        "INSERT INTO messages (room_id, sender_id, recipient_id, message, msg_type) VALUES (?, ?, ?, ?, ?)",
+        (room_id, user["id"], recipient_id, message, msg_type),
+    )
+    msg_id = cur.lastrowid
+    db.commit()
+    db.close()
+
+    msg_payload = {
+        "id": msg_id,
+        "room_id": room_id,
+        "message": message,
+        "msg_type": msg_type,
+        "sender_id": user["id"],
+        "sender_username": user["username"],
+        "sender_display_name": user["display_name"],
+        "sender_color": user["color"],
+        "recipient_id": recipient_id,
+        "created_at": datetime.now().isoformat(),
+    }
+
+    room_name = f"room_{room_id}"
+    if msg_type == "dm":
+        # Send DM only to sender and recipient sids
+        with _online_lock:
+            for sid, u in _online_users.items():
+                if u.get("room_id") == room_id and u["user_id"] in (user["id"], recipient_id):
+                    socketio.emit("chat_message", msg_payload, room=sid)
+    else:
+        socketio.emit("chat_message", msg_payload, room=room_name)
+
+    return jsonify({"id": msg_id, "status": "sent"})
+
+
+# =============================================================================
 # Routes: YOLO Training (Advanced)
 # =============================================================================
 
@@ -1429,12 +1584,44 @@ def api_gpu_info():
 
 @socketio.on("connect")
 def ws_connect():
+    user = _get_current_user()
+    if user:
+        with _online_lock:
+            _online_users[request.sid] = {
+                "user_id": user["id"],
+                "username": user["username"],
+                "display_name": user["display_name"],
+                "color": user["color"],
+                "room_id": None,
+            }
     print(f"[WS] Connected: {request.sid}")
 
 
 @socketio.on("disconnect")
 def ws_disconnect():
+    with _online_lock:
+        info = _online_users.pop(request.sid, None)
+    if info and info.get("room_id"):
+        room_name = f"room_{info['room_id']}"
+        emit("user_left", {
+            "username": info["username"],
+            "display_name": info["display_name"],
+        }, room=room_name)
+        # Broadcast updated online list
+        _broadcast_online(info["room_id"])
     print(f"[WS] Disconnected: {request.sid}")
+
+
+def _broadcast_online(room_id):
+    """Send current online users list to a room."""
+    with _online_lock:
+        online = [
+            {"user_id": u["user_id"], "username": u["username"],
+             "display_name": u["display_name"], "color": u["color"]}
+            for u in _online_users.values()
+            if u.get("room_id") == room_id
+        ]
+    socketio.emit("online_users", {"room_id": room_id, "users": online}, room=f"room_{room_id}")
 
 
 @socketio.on("join_room")
@@ -1445,11 +1632,15 @@ def ws_join_room(data):
         join_room(room_name)
         user = _get_current_user()
         if user:
+            with _online_lock:
+                if request.sid in _online_users:
+                    _online_users[request.sid]["room_id"] = room_id
             emit("user_joined", {
                 "username": user["username"],
                 "display_name": user["display_name"],
                 "color": user["color"],
             }, room=room_name, include_self=False)
+            _broadcast_online(room_id)
         print(f"[WS] {request.sid} joined {room_name}")
 
 
@@ -1461,10 +1652,14 @@ def ws_leave_room(data):
         leave_room(room_name)
         user = _get_current_user()
         if user:
+            with _online_lock:
+                if request.sid in _online_users:
+                    _online_users[request.sid]["room_id"] = None
             emit("user_left", {
                 "username": user["username"],
                 "display_name": user["display_name"],
             }, room=room_name, include_self=False)
+            _broadcast_online(room_id)
         print(f"[WS] {request.sid} left {room_name}")
 
 
