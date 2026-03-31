@@ -70,7 +70,8 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
    ============================================================================= */
 .chat-toggle { position:fixed; bottom:16px; right:16px; width:48px; height:48px; border-radius:50%; background:#e94560; color:#fff; border:none; cursor:pointer; font-size:20px; z-index:1000; box-shadow:0 2px 8px rgba(0,0,0,0.4); display:none; }
 .chat-toggle:hover { background:#c73e54; }
-.chat-toggle .unread-badge { position:absolute; top:-4px; right:-4px; width:18px; height:18px; border-radius:50%; background:#4caf50; color:#fff; font-size:10px; font-weight:bold; display:flex; align-items:center; justify-content:center; }
+.chat-toggle .unread-badge { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; border-radius:9px; background:#e94560; color:#fff; font-size:10px; font-weight:bold; display:flex; align-items:center; justify-content:center; padding:0 3px; animation: badge-pulse 1s ease-in-out infinite; }
+@keyframes badge-pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.2); } }
 
 .chat-panel { position:fixed; bottom:72px; right:16px; width:340px; height:480px; background:#12122a; border:1px solid #0f3460; border-radius:12px; display:none; flex-direction:column; overflow:hidden; z-index:999; box-shadow:0 4px 20px rgba(0,0,0,0.5); }
 .chat-panel.open { display:flex; }
@@ -201,7 +202,9 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
 .annotator-topbar .btn-back { padding:4px 10px; background:transparent; color:#e94560; border:1px solid #e94560; border-radius:4px; cursor:pointer; font-size:11px; }
 .annotator-topbar .spacer { flex:1; }
 .annotator-topbar .members-list { display:flex; gap:4px; }
-.annotator-topbar .member-dot { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:bold; cursor:default; }
+.annotator-topbar .member-dot { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:bold; cursor:default; position:relative; }
+.annotator-topbar .member-dot .online-ring { position:absolute; bottom:-1px; right:-1px; width:8px; height:8px; border-radius:50%; background:#4caf50; border:2px solid #0a0a1a; }
+.annotator-topbar .member-dot.offline { opacity:0.4; }
 .annotator-topbar .ws-indicator { width:8px; height:8px; border-radius:50%; background:#4caf50; title:connected; }
 .annotator-topbar .ws-indicator.disconnected { background:#e94560; }
 
@@ -777,6 +780,7 @@ function initSocket() {
     socket.on('online_users', (data) => {
         _roomOnlineUsers = data.users || [];
         updateChatMembersList();
+        updateTopbar();
     });
 
     // Chat message
@@ -787,12 +791,13 @@ function initSocket() {
 
         // If it's a DM, only show if we're viewing that DM tab
         if (data.msg_type === 'dm') {
-            if (_chatDmTarget && (data.sender_id === _chatDmTarget || data.sender_id === currentUser.id)) {
+            if (_chatDmTarget && (data.sender_id === _chatDmTarget || data.sender_id === currentUser.user_id)) {
                 appendChatMessage(data);
             }
             if (!isOpen || !_chatDmTarget) {
                 _chatUnreadCount++;
                 updateChatUnread();
+                playChatSound();
             }
         } else {
             // Global message
@@ -802,6 +807,7 @@ function initSocket() {
             if (!isOpen || _chatDmTarget) {
                 _chatUnreadCount++;
                 updateChatUnread();
+                playChatSound();
             }
         }
     });
@@ -1001,6 +1007,10 @@ async function enterRoom(roomId) {
     showView('annotatorView');
     initAnnotator();
     joinSocketRoom(roomId);
+    // Load room classes into class selector
+    const roomClasses = data.classes || ['object'];
+    const sel = document.getElementById('classSelect');
+    sel.innerHTML = roomClasses.map((name, i) => '<option value="' + i + '">' + i + ': ' + escHtml(name) + '</option>').join('');
     const infoRes = await fetch('/api/rooms/' + roomId);
     const infoData = await infoRes.json();
     roomMembers = infoData.members || [];
@@ -1481,6 +1491,24 @@ let _chatDmTarget = null; // null = global, user_id = DM
 let _chatDmTargetName = '';
 let _roomOnlineUsers = [];
 
+// Notification sound using Web Audio API
+function playChatSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.25);
+    } catch(e) {}
+}
+
 function toggleChat() {
     const panel = document.getElementById('chatPanel');
     panel.classList.toggle('open');
@@ -1560,10 +1588,11 @@ function updateChatMembersList() {
     const allMembers = [...roomMembers];
     let html = '';
     for (const m of allMembers) {
-        if (m.user_id === currentUser.id) continue; // skip self
-        const isOnline = onlineIds.has(m.user_id);
+        const mId = m.user_id || m.id;
+        if (mId === currentUser.user_id) continue; // skip self
+        const isOnline = onlineIds.has(mId);
         const name = m.display_name || m.username;
-        html += '<div class="chat-member-item" onclick="openDmChat(' + m.user_id + ', \'' + escHtml(name).replace(/'/g, "\\'") + '\')">';
+        html += '<div class="chat-member-item" onclick="openDmChat(' + mId + ', \'' + escHtml(name).replace(/'/g, "\\'") + '\')">';
         html += '<div class="member-color" style="background:' + (m.color || '#888') + ';"></div>';
         html += '<span>' + escHtml(name) + '</span>';
         if (isOnline) html += '<div class="online-indicator"></div>';
@@ -1603,7 +1632,7 @@ function appendChatMessage(msg) {
     const placeholder = messagesEl.querySelector('div[style*="text-align:center"]');
     if (placeholder) placeholder.remove();
 
-    const isSelf = msg.sender_id === currentUser.id;
+    const isSelf = msg.sender_id === currentUser.user_id;
     const div = document.createElement('div');
     div.className = 'chat-msg ' + (isSelf ? 'self' : 'other');
 
@@ -2159,7 +2188,8 @@ async function submitSaveFolder() {
 let editClasses = [];
 
 function openClassEditor() {
-    fetch('/api/classes').then(r => r.json()).then(data => {
+    if (!currentRoom) return;
+    fetch('/api/rooms/' + currentRoom.room_id + '/classes').then(r => r.json()).then(data => {
         editClasses = [...data.classes];
         renderClassEditor();
         openModal('classEditorModal');
@@ -2183,7 +2213,8 @@ function removeClassRow(idx) { editClasses.splice(idx, 1); renderClassEditor(); 
 async function submitClasses() {
     const cleaned = editClasses.map(c => c.trim()).filter(c => c);
     if (cleaned.length === 0) { showToast('Need at least one class', true); return; }
-    const res = await fetch('/api/classes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ classes: cleaned }) });
+    if (!currentRoom) return;
+    const res = await fetch('/api/rooms/' + currentRoom.room_id + '/classes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ classes: cleaned }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, true); return; }
     closeModal('classEditorModal');

@@ -160,6 +160,12 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_messages_room
             ON messages(room_id, created_at);
+        CREATE TABLE IF NOT EXISTS room_classes (
+            room_id INTEGER REFERENCES rooms(id),
+            class_index INTEGER NOT NULL,
+            class_name TEXT NOT NULL,
+            PRIMARY KEY (room_id, class_index)
+        );
     """)
     db.commit()
     db.close()
@@ -489,12 +495,26 @@ def api_enter_room(room_id):
             _image_names = []
             _cache_ready = True
 
+    # Load room classes
+    db2 = get_db()
+    classes_rows = db2.execute(
+        "SELECT class_name FROM room_classes WHERE room_id = ? ORDER BY class_index",
+        (room_id,),
+    ).fetchall()
+    db2.close()
+    room_classes = [r["class_name"] for r in classes_rows] if classes_rows else ["object"]
+
+    # Update global CLASS_NAMES for this room
+    global CLASS_NAMES
+    CLASS_NAMES = room_classes
+
     return jsonify({
         "status": "ok", "room_id": room_id,
         "room_name": room["name"], "room_code": room["code"],
         "images_dir": str(RAW_IMAGES_DIR), "labels_dir": str(RAW_LABELS_DIR),
         "export_dir": str(EXPORT_DIR), "image_count": len(_image_names),
         "blank": not bool(room["images_dir"]),
+        "classes": room_classes,
     })
 
 
@@ -645,27 +665,65 @@ def api_browse():
 
 
 # =============================================================================
-# Routes: Classes
+# Routes: Classes (room-scoped)
 # =============================================================================
 
 @app.route("/api/classes")
 def api_classes():
+    """Legacy endpoint — returns current room's classes."""
+    room_id = session.get("room_id")
+    if room_id:
+        db = get_db()
+        rows = db.execute(
+            "SELECT class_name FROM room_classes WHERE room_id = ? ORDER BY class_index",
+            (room_id,),
+        ).fetchall()
+        db.close()
+        if rows:
+            return jsonify({"classes": [r["class_name"] for r in rows]})
     return jsonify({"classes": CLASS_NAMES})
 
 
-@app.route("/api/classes", methods=["POST"])
+@app.route("/api/rooms/<int:room_id>/classes")
 @login_required
-def api_save_classes():
+def api_room_classes(room_id):
+    db = get_db()
+    rows = db.execute(
+        "SELECT class_name FROM room_classes WHERE room_id = ? ORDER BY class_index",
+        (room_id,),
+    ).fetchall()
+    db.close()
+    classes = [r["class_name"] for r in rows] if rows else ["object"]
+    return jsonify({"classes": classes})
+
+
+@app.route("/api/rooms/<int:room_id>/classes", methods=["POST"])
+@login_required
+def api_save_room_classes(room_id):
     global CLASS_NAMES
     data = request.get_json() or {}
     classes = data.get("classes", [])
     if not isinstance(classes, list) or not classes:
         return jsonify({"error": "classes must be a non-empty list"}), 400
-    CLASS_NAMES = [str(c).strip() for c in classes if str(c).strip()]
-    if not CLASS_NAMES:
+    cleaned = [str(c).strip() for c in classes if str(c).strip()]
+    if not cleaned:
         return jsonify({"error": "At least one class name required"}), 400
-    _save_class_config()
-    return jsonify({"status": "ok", "classes": CLASS_NAMES})
+
+    db = get_db()
+    db.execute("DELETE FROM room_classes WHERE room_id = ?", (room_id,))
+    for idx, name in enumerate(cleaned):
+        db.execute(
+            "INSERT INTO room_classes (room_id, class_index, class_name) VALUES (?, ?, ?)",
+            (room_id, idx, name),
+        )
+    db.commit()
+    db.close()
+
+    # Also update the global CLASS_NAMES if this is the current room
+    if session.get("room_id") == room_id:
+        CLASS_NAMES = cleaned
+
+    return jsonify({"status": "ok", "classes": cleaned})
 
 
 # =============================================================================
