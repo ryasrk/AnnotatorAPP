@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from auth import login_required
+from rate_limit import heavy_rate_limit
 from services.export_service import export_yolo, export_coco, export_voc
 import state
 
@@ -16,6 +17,7 @@ bp = Blueprint("export_routes", __name__)
 
 @bp.route("/api/export", methods=["POST"])
 @login_required
+@heavy_rate_limit
 def api_export():
     data = request.get_json() or {}
     train_ratio = max(0.1, min(0.95, float(data.get("train_ratio", 0.8))))

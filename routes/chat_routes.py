@@ -7,7 +7,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 
 from auth import login_required, get_current_user
-from database import get_db
+from database import get_db_ctx
 from extensions import socketio
 import state
 
@@ -46,41 +46,39 @@ def api_room_messages(room_id):
     limit = min(int(request.args.get("limit", 100)), 200)
     before_id = request.args.get("before")
     user = get_current_user()
-    db = get_db()
 
-    if msg_type == "dm":
-        with_user = request.args.get("with_user")
-        if not with_user:
-            db.close()
-            return jsonify({"error": "with_user required for DM"}), 400
-        query = """
-            SELECT m.id, m.message, m.msg_type, m.created_at,
-                   m.sender_id, m.recipient_id,
-                   u.username AS sender_username, u.display_name AS sender_display_name, u.color AS sender_color
-            FROM messages m JOIN users u ON m.sender_id = u.id
-            WHERE m.room_id = ? AND m.msg_type = 'dm'
-              AND ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))
-        """
-        params = [room_id, user["id"], int(with_user), int(with_user), user["id"]]
-    else:
-        query = """
-            SELECT m.id, m.message, m.msg_type, m.created_at,
-                   m.sender_id, m.recipient_id,
-                   u.username AS sender_username, u.display_name AS sender_display_name, u.color AS sender_color
-            FROM messages m JOIN users u ON m.sender_id = u.id
-            WHERE m.room_id = ? AND m.msg_type = 'global'
-        """
-        params = [room_id]
+    with get_db_ctx() as db:
+        if msg_type == "dm":
+            with_user = request.args.get("with_user")
+            if not with_user:
+                return jsonify({"error": "with_user required for DM"}), 400
+            query = """
+                SELECT m.id, m.message, m.msg_type, m.created_at,
+                       m.sender_id, m.recipient_id,
+                       u.username AS sender_username, u.display_name AS sender_display_name, u.color AS sender_color
+                FROM messages m JOIN users u ON m.sender_id = u.id
+                WHERE m.room_id = ? AND m.msg_type = 'dm'
+                  AND ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))
+            """
+            params = [room_id, user["id"], int(with_user), int(with_user), user["id"]]
+        else:
+            query = """
+                SELECT m.id, m.message, m.msg_type, m.created_at,
+                       m.sender_id, m.recipient_id,
+                       u.username AS sender_username, u.display_name AS sender_display_name, u.color AS sender_color
+                FROM messages m JOIN users u ON m.sender_id = u.id
+                WHERE m.room_id = ? AND m.msg_type = 'global'
+            """
+            params = [room_id]
 
-    if before_id:
-        query += " AND m.id < ?"
-        params.append(int(before_id))
+        if before_id:
+            query += " AND m.id < ?"
+            params.append(int(before_id))
 
-    query += " ORDER BY m.id DESC LIMIT ?"
-    params.append(limit)
+        query += " ORDER BY m.id DESC LIMIT ?"
+        params.append(limit)
 
-    rows = db.execute(query, params).fetchall()
-    db.close()
+        rows = db.execute(query, params).fetchall()
 
     messages = [
         {
@@ -111,14 +109,13 @@ def api_room_send_message(room_id):
     if msg_type == "dm" and not recipient_id:
         return jsonify({"error": "recipient_id required for DM"}), 400
 
-    db = get_db()
-    cur = db.execute(
-        "INSERT INTO messages (room_id, sender_id, recipient_id, message, msg_type) VALUES (?, ?, ?, ?, ?)",
-        (room_id, user["id"], recipient_id, message, msg_type),
-    )
-    msg_id = cur.lastrowid
-    db.commit()
-    db.close()
+    with get_db_ctx() as db:
+        cur = db.execute(
+            "INSERT INTO messages (room_id, sender_id, recipient_id, message, msg_type) VALUES (?, ?, ?, ?, ?)",
+            (room_id, user["id"], recipient_id, message, msg_type),
+        )
+        msg_id = cur.lastrowid
+        db.commit()
 
     msg_payload = {
         "id": msg_id,

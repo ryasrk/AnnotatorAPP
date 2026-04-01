@@ -5,7 +5,7 @@ Class management routes (room-scoped).
 from flask import Blueprint, jsonify, request, session
 
 from auth import login_required
-from database import get_db
+from database import get_db_ctx
 import state
 
 bp = Blueprint("class_routes", __name__)
@@ -15,12 +15,11 @@ bp = Blueprint("class_routes", __name__)
 def api_classes():
     room_id = session.get("room_id")
     if room_id:
-        db = get_db()
-        rows = db.execute(
-            "SELECT class_name FROM room_classes WHERE room_id = ? ORDER BY class_index",
-            (room_id,),
-        ).fetchall()
-        db.close()
+        with get_db_ctx() as db:
+            rows = db.execute(
+                "SELECT class_name FROM room_classes WHERE room_id = ? ORDER BY class_index",
+                (room_id,),
+            ).fetchall()
         if rows:
             return jsonify({"classes": [r["class_name"] for r in rows]})
     return jsonify({"classes": state.CLASS_NAMES})
@@ -29,12 +28,11 @@ def api_classes():
 @bp.route("/api/rooms/<int:room_id>/classes")
 @login_required
 def api_room_classes(room_id):
-    db = get_db()
-    rows = db.execute(
-        "SELECT class_name FROM room_classes WHERE room_id = ? ORDER BY class_index",
-        (room_id,),
-    ).fetchall()
-    db.close()
+    with get_db_ctx() as db:
+        rows = db.execute(
+            "SELECT class_name FROM room_classes WHERE room_id = ? ORDER BY class_index",
+            (room_id,),
+        ).fetchall()
     classes = [r["class_name"] for r in rows] if rows else ["object"]
     return jsonify({"classes": classes})
 
@@ -50,15 +48,14 @@ def api_save_room_classes(room_id):
     if not cleaned:
         return jsonify({"error": "At least one class name required"}), 400
 
-    db = get_db()
-    db.execute("DELETE FROM room_classes WHERE room_id = ?", (room_id,))
-    for idx, name in enumerate(cleaned):
-        db.execute(
-            "INSERT INTO room_classes (room_id, class_index, class_name) VALUES (?, ?, ?)",
-            (room_id, idx, name),
-        )
-    db.commit()
-    db.close()
+    with get_db_ctx() as db:
+        db.execute("DELETE FROM room_classes WHERE room_id = ?", (room_id,))
+        for idx, name in enumerate(cleaned):
+            db.execute(
+                "INSERT INTO room_classes (room_id, class_index, class_name) VALUES (?, ?, ?)",
+                (room_id, idx, name),
+            )
+        db.commit()
 
     if session.get("room_id") == room_id:
         state.CLASS_NAMES = cleaned

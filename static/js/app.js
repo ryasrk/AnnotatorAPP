@@ -108,6 +108,27 @@ function initSocket() {
         updateTopbar();
     });
 
+    // Join request notifications
+    socket.on('join_request', (data) => {
+        showToast('🔒 ' + (data.display_name || data.username) + ' wants to join this room');
+        showDesktopNotif('Join Request', (data.display_name || data.username) + ' wants to join');
+        // Auto-refresh if settings modal is open
+        if (document.getElementById('settingsModal').classList.contains('show')) {
+            loadJoinRequests();
+        }
+    });
+
+    socket.on('join_request_resolved', (data) => {
+        if (currentUser && data.user_id === currentUser.user_id) {
+            if (data.status === 'approved') {
+                showToast('Your join request was approved! 🎉');
+                loadRooms();
+            } else {
+                showToast('Your join request was denied', true);
+            }
+        }
+    });
+
     // Chat message
     socket.on('chat_message', (data) => {
         if (!currentRoom || data.room_id !== currentRoom.room_id) return;
@@ -164,6 +185,34 @@ function initSocket() {
             updateSessionDetailHeader(data.session_id);
         }
         showDesktopNotif('Training Complete', 'Session ' + data.session_id.slice(0,8) + ' ' + (data.status || 'finished'));
+    });
+
+    // Auto-annotate events
+    socket.on('apply_progress', (data) => {
+        const pct = data.total > 0 ? Math.round(data.done / data.total * 100) : 0;
+        const bar = document.getElementById('autoAnnotateProgressBar');
+        const text = document.getElementById('autoAnnotateProgressText');
+        if (bar) bar.style.width = pct + '%';
+        if (text) text.textContent = 'Processing ' + data.done + '/' + data.total + ' — ' + data.saved + ' saved';
+    });
+
+    socket.on('apply_complete', (data) => {
+        showToast('Auto-annotate complete: ' + data.saved + ' images from ' + escHtml(data.model));
+        showDesktopNotif('Auto-Annotate Complete', data.saved + ' images annotated');
+        const bar = document.getElementById('autoAnnotateProgressBar');
+        const text = document.getElementById('autoAnnotateProgressText');
+        const btn = document.getElementById('autoAnnotateBtn');
+        if (bar) bar.style.width = '100%';
+        if (text) text.textContent = 'Done! ' + data.saved + '/' + data.total + ' images annotated.';
+        if (btn) btn.disabled = false;
+        loadImagePage(currentPage);
+        updateStats();
+    });
+
+    socket.on('apply_error', (data) => {
+        showToast('Auto-annotate error: ' + (data.error || 'unknown'), true);
+        const btn = document.getElementById('autoAnnotateBtn');
+        if (btn) btn.disabled = false;
     });
 }
 
@@ -307,13 +356,15 @@ async function loadRooms() {
 
 async function createRoom() {
     const name = document.getElementById('createRoomName').value.trim();
+    const isPrivate = document.getElementById('createRoomPrivate').checked;
     document.getElementById('createRoomError').textContent = '';
     if (!name) { document.getElementById('createRoomError').textContent = 'Name required'; return; }
-    const res = await fetch('/api/rooms/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name }) });
+    const res = await fetch('/api/rooms/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name, is_private: isPrivate }) });
     const data = await res.json();
     if (data.error) { document.getElementById('createRoomError').textContent = data.error; return; }
     document.getElementById('createRoomName').value = '';
-    showToast('Room created! Code: ' + data.code);
+    document.getElementById('createRoomPrivate').checked = false;
+    showToast('Room created! Code: ' + data.code + (data.is_private ? ' 🔒' : ''));
     loadRooms();
 }
 
@@ -324,7 +375,13 @@ async function joinRoom() {
     const res = await fetch('/api/rooms/join', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code }) });
     const data = await res.json();
     if (data.error) { document.getElementById('joinRoomError').textContent = data.error; return; }
+    if (data.status === 'pending') {
+        document.getElementById('joinRoomError').style.color = '#ffd54f';
+        document.getElementById('joinRoomError').textContent = '🔒 ' + (data.message || 'Request pending approval');
+        return;
+    }
     document.getElementById('joinRoomCode').value = '';
+    document.getElementById('joinRoomError').style.color = '';
     showToast('Joined room: ' + data.name);
     loadRooms();
 }
@@ -756,7 +813,7 @@ async function browseForTrainData() {
     browser.style.display = 'block';
     const res = await fetch('/api/browse', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ path: browsePath }),
+        body: JSON.stringify({ path: browsePath, file_ext: '.yaml,.yml' }),
     });
     const data = await res.json();
     if (data.error) { showToast(data.error, true); return; }
@@ -772,17 +829,19 @@ async function browseForTrainData() {
             const full = (dirPath + '/' + d).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             html += '<div class="folder-item" onclick="browseTrainData(\'' + full + '\')">📁 ' + escHtml(d) + '</div>';
         });
+        (data.files || []).forEach(f => {
+            const pathEsc = escHtml(f.path).replace(/'/g, "\\'");
+            html += '<div class="folder-item" style="color:#4fc3f7; cursor:pointer;" onclick="selectTrainYaml(\'' + pathEsc + '\')">📄 ' + escHtml(f.name) + '</div>';
+        });
     } catch(e) {}
     browser.innerHTML = html;
-    input.value = data.path + '/data.yaml';
 }
 
 function browseTrainData(path) {
-    document.getElementById('trainDataYaml').value = path + '/data.yaml';
     const browser = document.getElementById('trainDataBrowser');
     fetch('/api/browse', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ path }),
+        body: JSON.stringify({ path, file_ext: '.yaml,.yml' }),
     }).then(r => r.json()).then(data => {
         if (data.error) return;
         let html = '';
@@ -794,9 +853,17 @@ function browseTrainData(path) {
             const full = (data.path + '/' + d).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             html += '<div class="folder-item" onclick="browseTrainData(\'' + full + '\')">📁 ' + escHtml(d) + '</div>';
         });
+        (data.files || []).forEach(f => {
+            const pathEsc = escHtml(f.path).replace(/'/g, "\\'");
+            html += '<div class="folder-item" style="color:#4fc3f7; cursor:pointer;" onclick="selectTrainYaml(\'' + pathEsc + '\')">📄 ' + escHtml(f.name) + '</div>';
+        });
         browser.innerHTML = html;
-        document.getElementById('trainDataYaml').value = data.path + '/data.yaml';
     });
+}
+
+function selectTrainYaml(yamlPath) {
+    document.getElementById('trainDataYaml').value = yamlPath;
+    document.getElementById('trainDataBrowser').style.display = 'none';
 }
 
 // =============================================================================
@@ -1633,6 +1700,265 @@ function drawInferenceOverlays() {
 }
 
 // =============================================================================
+// Auto-Annotate (Apply Predictions — Active Learning Loop)
+// =============================================================================
+async function openAutoAnnotate() {
+    openModal('autoAnnotateModal');
+    const sel = document.getElementById('autoAnnotateModel');
+    sel.innerHTML = '<option value="">Loading models...</option>';
+    // Reset class section
+    document.getElementById('autoAnnotateClassesSection').style.display = 'none';
+    document.getElementById('autoAnnotateClassesList').innerHTML = '';
+    try {
+        const res = await fetch('/api/inference/models');
+        const data = await res.json();
+        sel.innerHTML = '<option value="">Select model...</option>';
+        (data.models || []).forEach(m => {
+            sel.innerHTML += '<option value="' + escHtml(m.path) + '">' + escHtml(m.name) + ' (' + m.size_mb + 'MB)</option>';
+        });
+    } catch(e) {
+        sel.innerHTML = '<option value="">Error loading models</option>';
+    }
+    document.getElementById('autoAnnotateProgress').style.display = 'none';
+    document.getElementById('autoAnnotateBtn').disabled = false;
+}
+
+function openModelBrowser(browsePath) {
+    openModal('browseModelModal');
+    browseForModel(browsePath);
+}
+
+async function browseForModel(browsePath) {
+    const listDiv = document.getElementById('browseModelList');
+    const pathLabel = document.getElementById('browseModelPath');
+    listDiv.innerHTML = '<div style="padding:10px; color:#888;">Loading...</div>';
+
+    try {
+        const res = await fetch('/api/browse', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ path: browsePath || '', file_ext: '.pt' }),
+        });
+        const data = await res.json();
+        if (data.error) { listDiv.innerHTML = '<div style="padding:10px; color:#e74c3c;">' + escHtml(data.error) + '</div>'; return; }
+
+        pathLabel.textContent = data.path ? '📂 ' + data.path : '📂 Allowed roots';
+
+        let html = '';
+
+        // Root listing (allowed roots)
+        if (data.is_root && !data.path) {
+            (data.dirs || []).forEach(d => {
+                const esc = escHtml(d).replace(/'/g, "\\'");
+                html += '<div style="padding:6px 12px; cursor:pointer; display:flex; align-items:center; gap:8px;" onclick="browseForModel(\'' + esc + '\')" onmouseover="this.style.background=\'#16213e\'" onmouseout="this.style.background=\'\'"><span>📁</span><span style="font-size:13px;">' + escHtml(d) + '</span></div>';
+            });
+            listDiv.innerHTML = html || '<div style="padding:10px; color:#888;">No allowed roots</div>';
+            return;
+        }
+
+        // Parent directory
+        if (data.parent) {
+            const parentEsc = escHtml(data.parent).replace(/'/g, "\\'");
+            html += '<div style="padding:6px 12px; cursor:pointer; color:#ffd54f; display:flex; align-items:center; gap:8px;" onclick="browseForModel(\'' + parentEsc + '\')" onmouseover="this.style.background=\'#16213e\'" onmouseout="this.style.background=\'\'"><span>⬆</span><span style="font-size:13px;">..</span></div>';
+        }
+
+        // Directories
+        (data.dirs || []).forEach(d => {
+            const full = escHtml(data.path + '/' + d).replace(/'/g, "\\'");
+            html += '<div style="padding:6px 12px; cursor:pointer; display:flex; align-items:center; gap:8px;" onclick="browseForModel(\'' + full + '\')" onmouseover="this.style.background=\'#16213e\'" onmouseout="this.style.background=\'\'"><span>📁</span><span style="font-size:13px;">' + escHtml(d) + '</span></div>';
+        });
+
+        // .pt files
+        (data.files || []).forEach(f => {
+            const pathEsc = escHtml(f.path).replace(/'/g, "\\'");
+            html += '<div style="padding:6px 12px; cursor:pointer; color:#4fc3f7; display:flex; align-items:center; gap:8px;" onclick="selectBrowsedModel(\'' + pathEsc + '\', \'' + escHtml(f.name).replace(/'/g, "\\'") + '\')" onmouseover="this.style.background=\'#16213e\'" onmouseout="this.style.background=\'\'"><span>🧠</span><span style="font-size:13px;">' + escHtml(f.name) + '</span><span style="color:#888; font-size:11px; margin-left:auto;">' + f.size_mb + ' MB</span></div>';
+        });
+
+        listDiv.innerHTML = html || '<div style="padding:10px; color:#888;">Empty directory</div>';
+    } catch(e) {
+        listDiv.innerHTML = '<div style="padding:10px; color:#e74c3c;">Error browsing</div>';
+    }
+}
+
+function selectBrowsedModel(modelPath, modelName) {
+    const sel = document.getElementById('autoAnnotateModel');
+    let found = false;
+    for (let i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === modelPath) { sel.selectedIndex = i; found = true; break; }
+    }
+    if (!found) {
+        const opt = document.createElement('option');
+        opt.value = modelPath;
+        opt.textContent = '📂 ' + modelName + ' (browsed)';
+        sel.appendChild(opt);
+        sel.value = modelPath;
+    }
+    closeModal('browseModelModal');
+    onAutoAnnotateModelChange();
+}
+
+async function onAutoAnnotateModelChange() {
+    const modelPath = document.getElementById('autoAnnotateModel').value;
+    const section = document.getElementById('autoAnnotateClassesSection');
+    const listDiv = document.getElementById('autoAnnotateClassesList');
+    const countDiv = document.getElementById('autoAnnotateClassCount');
+
+    if (!modelPath) {
+        section.style.display = 'none';
+        listDiv.innerHTML = '';
+        return;
+    }
+
+    section.style.display = 'block';
+    listDiv.innerHTML = '<div style="color:#888; font-size:12px;">Loading classes...</div>';
+    countDiv.textContent = '';
+
+    try {
+        const res = await fetch('/api/inference/model-classes', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ model_path: modelPath }),
+        });
+        const data = await res.json();
+        if (!data.ok || !data.classes || data.classes.length === 0) {
+            listDiv.innerHTML = '<div style="color:#888; font-size:12px;">No classes found in model</div>';
+            return;
+        }
+        let html = '';
+        data.classes.forEach(c => {
+            html += '<label style="display:block; padding:2px 0; font-size:13px; cursor:pointer;">' +
+                '<input type="checkbox" class="autoAnnotateClassCb" value="' + c.id + '" checked> ' +
+                '<span style="color:#4fc3f7;">[' + c.id + ']</span> ' + escHtml(c.name) +
+                '</label>';
+        });
+        listDiv.innerHTML = html;
+        document.getElementById('autoAnnotateSelectAll').checked = true;
+        _updateAutoAnnotateClassCount();
+
+        // Listen for individual checkbox changes
+        listDiv.querySelectorAll('.autoAnnotateClassCb').forEach(cb => {
+            cb.addEventListener('change', function() {
+                _updateAutoAnnotateClassCount();
+                const all = listDiv.querySelectorAll('.autoAnnotateClassCb');
+                const checked = listDiv.querySelectorAll('.autoAnnotateClassCb:checked');
+                document.getElementById('autoAnnotateSelectAll').checked = (checked.length === all.length);
+            });
+        });
+    } catch(e) {
+        listDiv.innerHTML = '<div style="color:#e74c3c; font-size:12px;">Error loading classes</div>';
+    }
+}
+
+function toggleAllAutoAnnotateClasses(checked) {
+    document.querySelectorAll('.autoAnnotateClassCb').forEach(cb => { cb.checked = checked; });
+    _updateAutoAnnotateClassCount();
+}
+
+function _updateAutoAnnotateClassCount() {
+    const all = document.querySelectorAll('.autoAnnotateClassCb');
+    const checked = document.querySelectorAll('.autoAnnotateClassCb:checked');
+    const countDiv = document.getElementById('autoAnnotateClassCount');
+    countDiv.textContent = checked.length + ' of ' + all.length + ' classes selected';
+}
+
+async function startAutoAnnotate() {
+    const modelPath = document.getElementById('autoAnnotateModel').value;
+    if (!modelPath) return showToast('Select a model first', true);
+
+    // Gather selected classes
+    const classCbs = document.querySelectorAll('.autoAnnotateClassCb');
+    let selectedClasses = null;
+    if (classCbs.length > 0) {
+        const checked = document.querySelectorAll('.autoAnnotateClassCb:checked');
+        if (checked.length === 0) return showToast('Select at least one class', true);
+        // Only send filter if not all are selected
+        if (checked.length < classCbs.length) {
+            selectedClasses = Array.from(checked).map(cb => parseInt(cb.value));
+        }
+    }
+
+    const confidence = parseInt(document.getElementById('autoAnnotateConf').value) / 100;
+    const mode = document.getElementById('autoAnnotateMode').value;
+    const overwrite = document.getElementById('autoAnnotateOverwrite').checked;
+
+    let imageNames = [];
+    if (mode === 'selected' && typeof _batchSelected !== 'undefined') {
+        imageNames = [..._batchSelected];
+        if (imageNames.length === 0) return showToast('No images selected. Use batch mode (M) to select images.', true);
+    }
+
+    document.getElementById('autoAnnotateBtn').disabled = true;
+    document.getElementById('autoAnnotateProgress').style.display = 'block';
+    document.getElementById('autoAnnotateProgressText').textContent = 'Starting...';
+    document.getElementById('autoAnnotateProgressBar').style.width = '0%';
+
+    try {
+        const body = {
+            model_path: modelPath,
+            confidence: confidence,
+            mode: mode,
+            overwrite: overwrite,
+            image_names: imageNames,
+        };
+        if (selectedClasses !== null) body.selected_classes = selectedClasses;
+
+        const res = await fetch('/api/inference/apply-predictions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.error) {
+            showToast(data.error, true);
+            document.getElementById('autoAnnotateBtn').disabled = false;
+            document.getElementById('autoAnnotateProgress').style.display = 'none';
+            return;
+        }
+        showToast('Auto-annotating ' + data.target_count + ' images...');
+        _pollAutoAnnotateProgress();
+    } catch(e) {
+        showToast('Failed to start auto-annotate', true);
+        document.getElementById('autoAnnotateBtn').disabled = false;
+        document.getElementById('autoAnnotateProgress').style.display = 'none';
+    }
+}
+
+function _pollAutoAnnotateProgress() {
+    const poll = async () => {
+        try {
+            const res = await fetch('/api/inference/apply-progress');
+            const data = await res.json();
+            if (data.status === 'running') {
+                const pct = data.total > 0 ? Math.round(data.done / data.total * 100) : 0;
+                document.getElementById('autoAnnotateProgressBar').style.width = pct + '%';
+                document.getElementById('autoAnnotateProgressText').textContent =
+                    'Processing ' + data.done + '/' + data.total + ' — ' + data.saved + ' saved';
+                setTimeout(poll, 1000);
+            } else if (data.status === 'completed') {
+                document.getElementById('autoAnnotateProgressBar').style.width = '100%';
+                document.getElementById('autoAnnotateProgressText').textContent =
+                    'Done! Saved annotations for ' + data.saved + '/' + data.total + ' images.';
+                document.getElementById('autoAnnotateBtn').disabled = false;
+                showToast('Auto-annotate complete: ' + data.saved + ' images annotated');
+                // Refresh the image list to show new annotations
+                loadImagePage(currentPage);
+                updateStats();
+            } else if (data.status === 'error') {
+                document.getElementById('autoAnnotateProgressText').textContent = 'Error: ' + (data.error || 'unknown');
+                document.getElementById('autoAnnotateBtn').disabled = false;
+                showToast('Auto-annotate failed', true);
+            } else {
+                document.getElementById('autoAnnotateBtn').disabled = false;
+                document.getElementById('autoAnnotateProgress').style.display = 'none';
+            }
+        } catch(e) {
+            setTimeout(poll, 2000);
+        }
+    };
+    setTimeout(poll, 1000);
+}
+
+// =============================================================================
 // Render Image List
 // =============================================================================
 function renderImageList() {
@@ -1763,10 +2089,104 @@ function openSaveExportModal() {
 
 function openSettingsModal() {
     if (currentRoom) {
-        document.getElementById('settingsRoomName').textContent = currentRoom.name || '';
-        document.getElementById('settingsRoomCode').textContent = currentRoom.code || '';
+        document.getElementById('settingsRoomName').textContent = currentRoom.room_name || currentRoom.name || '';
+        document.getElementById('settingsRoomCode').textContent = currentRoom.room_code || currentRoom.code || '';
+
+        // Show privacy controls only for room creator
+        const isCreator = currentRoom.created_by === (currentUser && currentUser.user_id);
+        const privacySection = document.getElementById('settingsPrivacySection');
+        const requestsSection = document.getElementById('settingsJoinRequests');
+
+        if (isCreator) {
+            privacySection.style.display = 'block';
+            const isPrivate = currentRoom.is_private;
+            document.getElementById('roomPrivacyPublic').checked = !isPrivate;
+            document.getElementById('roomPrivacyPrivate').checked = isPrivate;
+            document.getElementById('privacyDescription').textContent = isPrivate
+                ? 'Private: Members need approval to join.'
+                : 'Public: Anyone with the code can join immediately.';
+
+            // Load pending requests
+            requestsSection.style.display = 'block';
+            loadJoinRequests();
+        } else {
+            privacySection.style.display = 'none';
+            requestsSection.style.display = 'none';
+        }
     }
     openModal('settingsModal');
+}
+
+async function updateRoomPrivacy(isPrivate) {
+    if (!currentRoom) return;
+    const roomId = currentRoom.room_id;
+    try {
+        const res = await fetch('/api/rooms/' + roomId + '/privacy', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ is_private: isPrivate }),
+        });
+        const data = await res.json();
+        if (data.error) { showToast(data.error, true); return; }
+        currentRoom.is_private = isPrivate;
+        document.getElementById('privacyDescription').textContent = isPrivate
+            ? 'Private: Members need approval to join.'
+            : 'Public: Anyone with the code can join immediately.';
+        showToast(isPrivate ? 'Room set to Private 🔒' : 'Room set to Public 🌐');
+    } catch(e) {
+        showToast('Failed to update privacy', true);
+    }
+}
+
+async function loadJoinRequests() {
+    if (!currentRoom) return;
+    const roomId = currentRoom.room_id;
+    const listDiv = document.getElementById('joinRequestsList');
+    const countSpan = document.getElementById('joinRequestCount');
+
+    try {
+        const res = await fetch('/api/rooms/' + roomId + '/join-requests');
+        const data = await res.json();
+        const requests = data.requests || [];
+        countSpan.textContent = requests.length > 0 ? '(' + requests.length + ')' : '';
+
+        if (requests.length === 0) {
+            listDiv.innerHTML = '<div style="font-size:12px; color:#888; padding:4px 0;">No pending requests</div>';
+            return;
+        }
+
+        let html = '';
+        requests.forEach(r => {
+            const name = escHtml(r.display_name || r.username);
+            html += '<div style="display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:1px solid #0f3460;">';
+            html += '<div><span style="color:' + escHtml(r.color) + '; font-weight:bold;">' + name + '</span> <span style="color:#888; font-size:11px;">@' + escHtml(r.username) + '</span></div>';
+            html += '<div style="display:flex; gap:4px;">';
+            html += '<button class="btn" style="font-size:11px; padding:2px 8px; background:#4caf50; color:#fff; border:none;" onclick="resolveJoinRequest(' + r.id + ', \'approve\')">✓ Approve</button>';
+            html += '<button class="btn" style="font-size:11px; padding:2px 8px; background:#e94560; color:#fff; border:none;" onclick="resolveJoinRequest(' + r.id + ', \'deny\')">✕ Deny</button>';
+            html += '</div></div>';
+        });
+        listDiv.innerHTML = html;
+    } catch(e) {
+        listDiv.innerHTML = '<div style="font-size:12px; color:#e74c3c;">Error loading requests</div>';
+    }
+}
+
+async function resolveJoinRequest(requestId, action) {
+    if (!currentRoom) return;
+    const roomId = currentRoom.room_id;
+    try {
+        const res = await fetch('/api/rooms/' + roomId + '/join-requests/' + requestId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action }),
+        });
+        const data = await res.json();
+        if (data.error) { showToast(data.error, true); return; }
+        showToast(action === 'approve' ? 'Request approved ✓' : 'Request denied ✕');
+        loadJoinRequests();
+    } catch(e) {
+        showToast('Failed to process request', true);
+    }
 }
 
 function confirmDeleteRoom() {
@@ -1778,7 +2198,8 @@ function confirmDeleteRoom() {
 async function executeDeleteRoom() {
     if (!currentRoom) return;
     const typed = document.getElementById('deleteRoomConfirmInput').value.trim();
-    if (typed !== currentRoom.name) {
+    const roomName = currentRoom.room_name || currentRoom.name || '';
+    if (typed !== roomName) {
         showToast('Room name does not match', true);
         return;
     }

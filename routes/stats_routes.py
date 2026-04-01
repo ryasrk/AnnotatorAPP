@@ -7,7 +7,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, session
 
 from auth import login_required
-from database import get_db
+from database import get_db_ctx
 from services.label_service import read_labels
 import state
 
@@ -31,12 +31,10 @@ def api_stats():
 
     annotated = sum(1 for v in cache.values() if v["annotated"])
     total_bboxes = sum(v["bbox_count"] for v in cache.values())
-    class_dist = {}
-    for name in state.image_names:
-        labels = read_labels(name)
-        for lbl in labels:
-            cid = str(lbl["class_id"])
-            class_dist[cid] = class_dist.get(cid, 0) + 1
+
+    # Use cached class distribution instead of re-reading all files
+    with state.state_lock:
+        class_dist = dict(getattr(state, '_class_distribution', {}))
 
     return jsonify({
         "total_images": len(state.image_names),
@@ -56,18 +54,17 @@ def api_dashboard_stats():
     if not room_id:
         return jsonify({"member_stats": []})
 
-    db = get_db()
-    stats = db.execute("""
-        SELECT u.id, u.username, u.display_name, u.color,
-               COUNT(ie.id) AS edit_count
-        FROM users u
-        JOIN room_members rm ON rm.user_id = u.id
-        LEFT JOIN image_edits ie ON ie.user_id = u.id AND ie.room_id = ?
-        WHERE rm.room_id = ?
-        GROUP BY u.id
-        ORDER BY edit_count DESC
-    """, (room_id, room_id)).fetchall()
-    db.close()
+    with get_db_ctx() as db:
+        stats = db.execute("""
+            SELECT u.id, u.username, u.display_name, u.color,
+                   COUNT(ie.id) AS edit_count
+            FROM users u
+            JOIN room_members rm ON rm.user_id = u.id
+            LEFT JOIN image_edits ie ON ie.user_id = u.id AND ie.room_id = ?
+            WHERE rm.room_id = ?
+            GROUP BY u.id
+            ORDER BY edit_count DESC
+        """, (room_id, room_id)).fetchall()
     return jsonify({"member_stats": [dict(s) for s in stats]})
 
 

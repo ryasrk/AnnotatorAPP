@@ -6,7 +6,7 @@ Application factory and entrypoint.
 
 import threading
 
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 
 import config
 from extensions import socketio
@@ -25,6 +25,24 @@ def create_app():
 
     # Initialize extensions
     socketio.init_app(app)
+
+    # CSRF protection for state-changing requests
+    @app.before_request
+    def csrf_protect():
+        from flask import request
+        if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+            # Allow requests with JSON content-type (custom header = CORS preflight required)
+            ct = request.content_type or ""
+            if "application/json" not in ct and request.path.startswith("/api/"):
+                return jsonify({"error": "Content-Type must be application/json"}), 400
+
+    # Security headers
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
 
     # Register blueprints
     register_blueprints(app)

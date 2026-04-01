@@ -204,23 +204,46 @@ def parse_progress(session_id, line):
         pass
 
 
+def _sanitize_model_name(model_name):
+    """Validate model name to prevent injection."""
+    import re
+    if not re.match(r'^[\w.\-/]+$', model_name):
+        raise ValueError(f"Invalid model name: {model_name}")
+    return model_name
+
+
+def _write_safe_training_script(script_path, config_path):
+    """Write a training script that reads params from a JSON config file."""
+    script_content = (
+        "import json, sys\n"
+        "from ultralytics import YOLO\n"
+        f"with open({repr(str(config_path))}) as f:\n"
+        "    config = json.load(f)\n"
+        "model = YOLO(config['model'])\n"
+        "params = config['params']\n"
+        "data = params.pop('data')\n"
+        "model.train(data=data, **params)\n"
+        "print('[NEXUS_DONE]')\n"
+    )
+    script_path.write_text(script_content)
+
+
 def run_training_subprocess(sid, session_name, model_name, data_yaml, train_params):
     try:
+        model_name = _sanitize_model_name(model_name)
         add_train_log(sid, f"[INIT] Loading model: {model_name}", "info")
 
-        script_path = Path(train_params["project"]) / f".nexus_train_{sid}.py"
-        script_path.parent.mkdir(parents=True, exist_ok=True)
-        param_str = json.dumps({**train_params, "data": str(data_yaml)})
-        script_content = (
-            f"import json, sys\n"
-            f"from ultralytics import YOLO\n"
-            f"model = YOLO('{model_name}')\n"
-            f"params = json.loads('{param_str}')\n"
-            f"data = params.pop('data')\n"
-            f"model.train(data=data, **params)\n"
-            f"print('[NEXUS_DONE]')\n"
-        )
-        script_path.write_text(script_content)
+        project_dir = Path(train_params["project"])
+        project_dir.mkdir(parents=True, exist_ok=True)
+        script_path = project_dir / f".nexus_train_{sid}.py"
+        config_path = project_dir / f".nexus_config_{sid}.json"
+
+        # Write params to a safe JSON config file (no string interpolation)
+        config_data = {"model": model_name, "params": {**train_params, "data": str(data_yaml)}}
+        with open(config_path, "w") as f:
+            json.dump(config_data, f)
+
+        _write_safe_training_script(script_path, config_path)
 
         add_train_log(sid, f"[START] {session_name} | {model_name} | data={data_yaml.name}", "info")
 
@@ -274,6 +297,7 @@ def run_training_subprocess(sid, session_name, model_name, data_yaml, train_para
 
         try:
             script_path.unlink(missing_ok=True)
+            config_path.unlink(missing_ok=True)
         except Exception:
             pass
 

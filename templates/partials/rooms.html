@@ -32,6 +32,10 @@
         <h2>➕ Create Room</h2>
         <div class="room-error" id="createRoomError"></div>
         <input type="text" id="createRoomName" placeholder="Room name">
+        <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:#ccc; margin:6px 0;">
+          <label class="toggle-switch"><input type="checkbox" id="createRoomPrivate"><span class="toggle-slider"></span></label>
+          🔒 Private (require approval to join)
+        </label>
         <button class="btn-room" onclick="createRoom()">Create</button>
       </div>
       <div class="rooms-section">

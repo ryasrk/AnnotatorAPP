@@ -5,7 +5,7 @@ Image listing and label CRUD routes.
 from flask import Blueprint, jsonify, request, session, send_from_directory
 
 from auth import login_required, get_current_user
-from database import get_db
+from database import get_db, get_db_ctx
 from extensions import socketio
 from services.image_service import get_annotation_info
 from services.label_service import read_labels, write_labels
@@ -49,16 +49,19 @@ def api_images():
                 continue
         filtered.append(name)
 
+    # Pre-compute sort keys in a single pass (avoids repeated get_annotation_info per comparison)
     if sort == "name-desc":
         filtered.sort(reverse=True)
-    elif sort == "annotated-first":
-        filtered.sort(key=lambda n: (0 if get_annotation_info(n)["annotated"] else 1, n))
-    elif sort == "unannotated-first":
-        filtered.sort(key=lambda n: (1 if get_annotation_info(n)["annotated"] else 0, n))
-    elif sort == "boxes-desc":
-        filtered.sort(key=lambda n: -get_annotation_info(n)["bbox_count"])
-    elif sort == "boxes-asc":
-        filtered.sort(key=lambda n: get_annotation_info(n)["bbox_count"])
+    elif sort in ("annotated-first", "unannotated-first", "boxes-desc", "boxes-asc"):
+        infos = {n: get_annotation_info(n) for n in filtered}
+        if sort == "annotated-first":
+            filtered.sort(key=lambda n: (0 if infos[n]["annotated"] else 1, n))
+        elif sort == "unannotated-first":
+            filtered.sort(key=lambda n: (1 if infos[n]["annotated"] else 0, n))
+        elif sort == "boxes-desc":
+            filtered.sort(key=lambda n: -infos[n]["bbox_count"])
+        elif sort == "boxes-asc":
+            filtered.sort(key=lambda n: infos[n]["bbox_count"])
 
     total = len(filtered)
     start = page * per_page

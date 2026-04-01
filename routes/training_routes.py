@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify, request, session
 
 from auth import login_required
 from extensions import socketio
+from rate_limit import heavy_rate_limit
 from services.training_service import (
     TRAIN_PARAMS_SCHEMA,
     parse_train_params,
@@ -34,6 +35,7 @@ def api_train_params_schema():
 
 @bp.route("/api/train", methods=["POST"])
 @login_required
+@heavy_rate_limit
 def api_train():
     data = request.get_json() or {}
 
@@ -173,23 +175,22 @@ def api_train_resume(session_id):
 
     def run_resumed():
         try:
+            from services.training_service import _sanitize_model_name, _write_safe_training_script
+            _sanitize_model_name(model_name)
             add_train_log(session_id, f"[RESUME] Resuming: {session_name} | {model_name}", "info")
 
             resume_params = {**train_params, "data": str(data_yaml), "resume": True}
-            param_str = json.dumps(resume_params)
 
-            script_path = Path(train_params.get("project", ".")) / f".nexus_train_{session_id}.py"
-            script_path.parent.mkdir(parents=True, exist_ok=True)
-            script_content = (
-                f"import json, sys\n"
-                f"from ultralytics import YOLO\n"
-                f"model = YOLO('{model_name}')\n"
-                f"params = json.loads('{param_str}')\n"
-                f"data = params.pop('data')\n"
-                f"model.train(data=data, **params)\n"
-                f"print('[NEXUS_DONE]')\n"
-            )
-            script_path.write_text(script_content)
+            project_dir = Path(train_params.get("project", "."))
+            project_dir.mkdir(parents=True, exist_ok=True)
+            script_path = project_dir / f".nexus_train_{session_id}.py"
+            config_path = project_dir / f".nexus_config_{session_id}.json"
+
+            # Write params to safe JSON config file (prevents injection)
+            config_data = {"model": model_name, "params": resume_params}
+            with open(config_path, "w") as cfg_f:
+                json.dump(config_data, cfg_f)
+            _write_safe_training_script(script_path, config_path)
 
             proc = subprocess.Popen(
                 [str(Path(os.environ.get('VIRTUAL_ENV', '')) / 'bin' / 'python'), str(script_path)],
@@ -240,6 +241,7 @@ def api_train_resume(session_id):
 
             try:
                 script_path.unlink(missing_ok=True)
+                config_path.unlink(missing_ok=True)
             except Exception:
                 pass
 

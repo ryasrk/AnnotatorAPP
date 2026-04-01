@@ -4,7 +4,7 @@ Edit tracking routes.
 
 from flask import Blueprint, jsonify, request, session
 
-from database import get_db
+from database import get_db_ctx
 import state
 
 bp = Blueprint("edit_routes", __name__)
@@ -16,16 +16,15 @@ def api_image_edits():
     if not room_id:
         return jsonify({"edits": {}})
 
-    db = get_db()
-    edits = db.execute("""
-        SELECT ie.image_name, ie.edited_at, u.username, u.display_name, u.color
-        FROM image_edits ie
-        JOIN users u ON ie.user_id = u.id
-        WHERE ie.id IN (
-            SELECT MAX(id) FROM image_edits WHERE room_id = ? GROUP BY image_name
-        )
-    """, (room_id,)).fetchall()
-    db.close()
+    with get_db_ctx() as db:
+        edits = db.execute("""
+            SELECT ie.image_name, ie.edited_at, u.username, u.display_name, u.color
+            FROM image_edits ie
+            JOIN users u ON ie.user_id = u.id
+            WHERE ie.id IN (
+                SELECT MAX(id) FROM image_edits WHERE room_id = ? GROUP BY image_name
+            )
+        """, (room_id,)).fetchall()
 
     return jsonify({
         "edits": {

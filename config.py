@@ -33,3 +33,11 @@ PER_PAGE_MAX = 200
 # Server
 HOST = os.environ.get("HOST", "172.20.10.10")
 PORT = int(os.environ.get("PORT", 5000))
+
+# Allowed roots for folder browsing and opening (security)
+ALLOWED_ROOTS = [
+    str(BASE_DIR),
+    os.environ.get("ALLOWED_ROOT_1", ""),
+    os.environ.get("ALLOWED_ROOT_2", ""),
+]
+ALLOWED_ROOTS = [r for r in ALLOWED_ROOTS if r]  # filter empty

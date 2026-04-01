@@ -37,6 +37,29 @@
         <div>Name: <span id="settingsRoomName" style="color:#e0e0e0; font-weight:bold;"></span></div>
         <div>Code: <span id="settingsRoomCode" style="color:#e94560; font-family:monospace;"></span></div>
       </div>
+
+      <!-- Privacy Toggle (creator only) -->
+      <div id="settingsPrivacySection" style="display:none; border-top:1px solid #0f3460; padding-top:12px; margin-top:12px;">
+        <h3 style="font-size:12px; color:#e94560; margin-bottom:8px;">Access Mode</h3>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="radio" name="roomPrivacy" value="public" id="roomPrivacyPublic" onchange="updateRoomPrivacy(false)">
+            <span>🌐 Public</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+            <input type="radio" name="roomPrivacy" value="private" id="roomPrivacyPrivate" onchange="updateRoomPrivacy(true)">
+            <span>🔒 Private</span>
+          </label>
+        </div>
+        <p style="font-size:10px; color:#888; margin-top:4px;" id="privacyDescription">Public: Anyone with the code can join immediately.</p>
+      </div>
+
+      <!-- Pending Join Requests (creator only) -->
+      <div id="settingsJoinRequests" style="display:none; border-top:1px solid #0f3460; padding-top:12px; margin-top:12px;">
+        <h3 style="font-size:12px; color:#e94560; margin-bottom:8px;">Pending Join Requests <span id="joinRequestCount" style="color:#4fc3f7;"></span></h3>
+        <div id="joinRequestsList" style="max-height:200px; overflow-y:auto;"></div>
+      </div>
+
       <div style="border-top:1px solid #0f3460; padding-top:12px; margin-top:12px;">
         <h3 style="font-size:12px; color:#e94560; margin-bottom:8px;">Danger Zone</h3>
         <button class="btn" style="background:#4a0f0f; color:#e94560; border-color:#e94560; width:100%;" onclick="confirmDeleteRoom()">🗑 Delete Room</button>
@@ -215,6 +238,76 @@
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('batchAssignModal')">Cancel</button>
       <button class="btn btn-primary" onclick="executeBatchAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- Auto-Annotate (Apply Predictions) Modal -->
+<div class="modal-overlay" id="autoAnnotateModal">
+  <div class="modal" style="min-width:460px; max-width:560px;">
+    <h2>🤖 Auto-Annotate</h2>
+    <p style="font-size:12px; color:#888; margin-bottom:12px;">Run model inference on images and save predictions as annotations. This is the active learning loop: Train → Predict → Review → Re-train.</p>
+
+    <label>Model</label>
+    <div style="display:flex; gap:6px; align-items:stretch;">
+      <select id="autoAnnotateModel" onchange="onAutoAnnotateModelChange()" style="flex:1; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+        <option value="">Select model...</option>
+      </select>
+      <button class="btn" type="button" onclick="openModelBrowser()" style="font-size:12px; padding:6px 12px; white-space:nowrap;" title="Browse filesystem for .pt model files">📂 Browse</button>
+    </div>
+
+    <label style="margin-top:10px;">Confidence Threshold: <span id="autoAnnotateConfVal">25</span>%</label>
+    <input type="range" id="autoAnnotateConf" min="5" max="95" value="25" step="5" oninput="document.getElementById('autoAnnotateConfVal').textContent=this.value">
+
+    <!-- Step 2: Class selection -->
+    <div id="autoAnnotateClassesSection" style="display:none; margin-top:10px;">
+      <label style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Model Classes</span>
+        <label style="font-size:12px; cursor:pointer; margin:0;">
+          <input type="checkbox" id="autoAnnotateSelectAll" checked onchange="toggleAllAutoAnnotateClasses(this.checked)"> Select All
+        </label>
+      </label>
+      <div id="autoAnnotateClassesList" style="max-height:180px; overflow-y:auto; border:1px solid #0f3460; border-radius:4px; padding:6px 8px; background:#16213e; margin-top:4px;">
+        <div style="color:#888; font-size:12px;">Loading classes...</div>
+      </div>
+      <div style="font-size:11px; color:#888; margin-top:2px;" id="autoAnnotateClassCount"></div>
+    </div>
+
+    <label style="margin-top:10px;">Target Images</label>
+    <select id="autoAnnotateMode" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+      <option value="unannotated">Unannotated images only</option>
+      <option value="all">All images</option>
+      <option value="selected">Selected images (batch selection)</option>
+    </select>
+
+    <label style="margin-top:10px;">
+      <input type="checkbox" id="autoAnnotateOverwrite"> Overwrite existing annotations
+    </label>
+
+    <div id="autoAnnotateProgress" style="display:none; margin-top:12px;">
+      <div style="font-size:12px; color:#ccc; margin-bottom:4px;" id="autoAnnotateProgressText">Processing...</div>
+      <div style="height:6px; background:#16213e; border-radius:3px; overflow:hidden;">
+        <div id="autoAnnotateProgressBar" style="height:100%; background:#4caf50; width:0%; transition:width 0.3s;"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('autoAnnotateModal')">Cancel</button>
+      <button class="btn btn-primary" id="autoAnnotateBtn" onclick="startAutoAnnotate()">🚀 Start Auto-Annotate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Browse Model File Modal -->
+<div class="modal-overlay" id="browseModelModal" style="z-index:2100;">
+  <div class="modal" style="min-width:420px; max-width:520px;">
+    <h2>📂 Browse Model File</h2>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+      <span style="font-size:12px; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;" id="browseModelPath">Select a .pt model file</span>
+    </div>
+    <div id="browseModelList" style="min-height:100px; max-height:340px; overflow-y:auto; border:1px solid #0f3460; border-radius:6px; background:#0e1628; padding:2px 0;"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn" onclick="closeModal('browseModelModal')">Cancel</button>
     </div>
   </div>
 </div>

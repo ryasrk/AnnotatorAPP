@@ -2,6 +2,7 @@
 Database connection and schema initialization.
 """
 
+import contextlib
 import sqlite3
 from config import DB_PATH
 
@@ -12,6 +13,16 @@ def get_db():
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA foreign_keys=ON")
     return db
+
+
+@contextlib.contextmanager
+def get_db_ctx():
+    """Context-managed database connection. Auto-closes on exit."""
+    db = get_db()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def init_db():
@@ -33,8 +44,19 @@ def init_db():
             labels_dir TEXT DEFAULT '',
             export_dir TEXT DEFAULT '',
             folder_mode TEXT DEFAULT 'images_labels',
+            is_private INTEGER DEFAULT 0,
             created_by INTEGER REFERENCES users(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS join_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_id INTEGER REFERENCES rooms(id),
+            user_id INTEGER REFERENCES users(id),
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_by INTEGER REFERENCES users(id),
+            resolved_at TIMESTAMP,
+            UNIQUE(room_id, user_id)
         );
         CREATE TABLE IF NOT EXISTS room_members (
             room_id INTEGER REFERENCES rooms(id),
@@ -86,5 +108,30 @@ def init_db():
         );
     """)
     db.commit()
+
+    # Add columns/tables that may not exist in older databases
+    _safe_alter(db, "ALTER TABLE rooms ADD COLUMN is_private INTEGER DEFAULT 0")
+    _safe_alter(db, """
+        CREATE TABLE IF NOT EXISTS join_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            room_id INTEGER REFERENCES rooms(id),
+            user_id INTEGER REFERENCES users(id),
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_by INTEGER REFERENCES users(id),
+            resolved_at TIMESTAMP,
+            UNIQUE(room_id, user_id)
+        )
+    """)
+
     db.close()
     print("[DB] Initialized")
+
+
+def _safe_alter(db, sql):
+    """Run ALTER TABLE or CREATE IF NOT EXISTS, ignoring 'already exists' errors."""
+    try:
+        db.execute(sql)
+        db.commit()
+    except sqlite3.OperationalError:
+        pass

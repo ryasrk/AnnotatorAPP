@@ -21,7 +21,7 @@
       </div>
       <div style="padding:6px 16px; display:flex; gap:4px;">
         <button class="tool-btn" style="flex:1; font-size:11px;" id="openFolderBtn" title="Open image folder">📂 Open</button>
-        <button class="tool-btn" style="flex:1; font-size:11px;" onclick="toggleBatchMode()" title="Multi-select mode">☑ Batch</button>
+        <button class="tool-btn" style="flex:1; font-size:11px;" onclick="toggleBatchMode()" title="Multi-select mode">☑ Additional Tools</button>
         <button class="tool-btn" style="flex:1; font-size:11px;" onclick="openSettingsModal()" title="Settings">⚙ Settings</button>
       </div>
       <div class="dir-display" id="dirDisplay">Loading...</div>
@@ -100,6 +100,8 @@
         <button onclick="runInference()" style="background:#4caf50; color:#fff; border:none; border-radius:3px; padding:2px 8px; cursor:pointer;">▶ Run</button>
         <button onclick="clearInference()">✕ Clear</button>
         <button onclick="acceptInference()" title="Accept detections as labels">✅ Accept</button>
+        <span style="border-left:1px solid #0f3460; margin:0 6px; height:16px; display:inline-block;"></span>
+        <button onclick="openAutoAnnotate()" style="background:#9c27b0; color:#fff; border:none; border-radius:3px; padding:2px 8px; cursor:pointer;" title="Run predictions on all/selected images and save as labels">🤖 Auto-Annotate Batch</button>
       </div>
     </div>
 

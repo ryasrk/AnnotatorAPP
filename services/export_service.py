@@ -4,6 +4,7 @@ Dataset export in YOLO, COCO, and VOC formats.
 
 import json
 import shutil
+from html import escape as html_escape
 from pathlib import Path
 
 import state
@@ -102,10 +103,11 @@ def export_voc(target_dir, train_imgs, valid_imgs):
 
     def write_voc_xml(img_name, labels, img_w, img_h, out_dir):
         stem = Path(img_name).stem
-        xml = f'<annotation>\n  <filename>{img_name}</filename>\n'
+        xml = f'<annotation>\n  <filename>{html_escape(img_name)}</filename>\n'
         xml += f'  <size><width>{img_w}</width><height>{img_h}</height><depth>3</depth></size>\n'
         for lbl in labels:
             cls_name = state.CLASS_NAMES[lbl["class_id"]] if lbl["class_id"] < len(state.CLASS_NAMES) else f"class_{lbl['class_id']}"
+            cls_name = html_escape(cls_name)
             xmin = max(0, int((lbl["cx"] - lbl["w"] / 2) * img_w))
             ymin = max(0, int((lbl["cy"] - lbl["h"] / 2) * img_h))
             xmax = min(img_w, int((lbl["cx"] + lbl["w"] / 2) * img_w))

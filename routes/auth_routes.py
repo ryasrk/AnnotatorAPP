@@ -6,12 +6,14 @@ from flask import Blueprint, jsonify, request, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import USER_COLORS
-from database import get_db
+from database import get_db_ctx
+from rate_limit import auth_rate_limit
 
 bp = Blueprint("auth_routes", __name__)
 
 
 @bp.route("/api/register", methods=["POST"])
+@auth_rate_limit
 def api_register():
     data = request.get_json() or {}
     username = data.get("username", "").strip()
@@ -25,22 +27,20 @@ def api_register():
     if len(password) < 4:
         return jsonify({"error": "Password must be at least 4 characters"}), 400
 
-    db = get_db()
-    if db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone():
-        db.close()
-        return jsonify({"error": "Username already taken"}), 400
+    with get_db_ctx() as db:
+        if db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone():
+            return jsonify({"error": "Username already taken"}), 400
 
-    count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    color = USER_COLORS[count % len(USER_COLORS)]
-    pw_hash = generate_password_hash(password)
+        count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        color = USER_COLORS[count % len(USER_COLORS)]
+        pw_hash = generate_password_hash(password)
 
-    cursor = db.execute(
-        "INSERT INTO users (username, password_hash, display_name, color) VALUES (?, ?, ?, ?)",
-        (username, pw_hash, display_name, color),
-    )
-    user_id = cursor.lastrowid
-    db.commit()
-    db.close()
+        cursor = db.execute(
+            "INSERT INTO users (username, password_hash, display_name, color) VALUES (?, ?, ?, ?)",
+            (username, pw_hash, display_name, color),
+        )
+        user_id = cursor.lastrowid
+        db.commit()
 
     session["user_id"] = user_id
     return jsonify({
@@ -50,6 +50,7 @@ def api_register():
 
 
 @bp.route("/api/login", methods=["POST"])
+@auth_rate_limit
 def api_login():
     data = request.get_json() or {}
     username = data.get("username", "").strip()
@@ -58,9 +59,8 @@ def api_login():
     if not username or not password:
         return jsonify({"error": "Username and password required"}), 400
 
-    db = get_db()
-    user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-    db.close()
+    with get_db_ctx() as db:
+        user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
 
     if not user or not check_password_hash(user["password_hash"], password):
         return jsonify({"error": "Invalid username or password"}), 401
