@@ -2227,6 +2227,10 @@ async function openAutoAnnotate() {
     switchAATab('aa-main');
     document.getElementById('autoAnnotateClassesList').innerHTML = '<div style="color:#888; font-size:12px;">Select a model first</div>';
     document.getElementById('aaClassBadge').textContent = '';
+    // Sync target mode with current sidebar filter
+    const modeMap = { all: 'all', annotated: 'annotated', unannotated: 'unannotated', assigned: 'assigned' };
+    const modeSelect = document.getElementById('autoAnnotateMode');
+    if (modeMap[currentFilter]) modeSelect.value = modeMap[currentFilter];
     await loadInferenceModels();
     document.getElementById('autoAnnotateProgress').style.display = 'none';
     document.getElementById('autoAnnotateBtn').disabled = false;

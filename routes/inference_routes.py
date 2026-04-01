@@ -161,7 +161,7 @@ def api_apply_predictions():
     model_path = data.get("model_path", "")
     confidence = max(0.01, min(1.0, float(data.get("confidence", 0.25))))
     image_names = data.get("image_names", [])
-    mode = data.get("mode", "unannotated")  # "unannotated", "all", "selected"
+    mode = data.get("mode", "unannotated")  # "unannotated", "all", "selected", "annotated", "assigned"
     overwrite = data.get("overwrite", False)
     class_mapping = data.get("class_mapping", None)  # optional: {model_class_id: room_class_id}
     selected_classes = data.get("selected_classes", None)  # optional: list of model class IDs to include
@@ -180,6 +180,23 @@ def api_apply_predictions():
         with state.state_lock:
             targets = [n for n in state.image_names
                        if n not in state.image_cache or not state.image_cache[n]["annotated"]]
+    elif mode == "annotated":
+        with state.state_lock:
+            targets = [n for n in state.image_names
+                       if n in state.image_cache and state.image_cache[n]["annotated"]]
+    elif mode == "assigned":
+        user_id = session.get("user_id")
+        if not user_id or not room_id:
+            return jsonify({"error": "Must be in a room to use assigned filter"}), 400
+        from database import get_db
+        db = get_db()
+        rows = db.execute(
+            "SELECT image_name FROM image_assignments WHERE room_id = ? AND user_id = ?",
+            (room_id, user_id)
+        ).fetchall()
+        db.close()
+        assigned_names = {r["image_name"] for r in rows}
+        targets = [n for n in state.image_names if n in assigned_names]
     else:  # all
         targets = list(state.image_names)
 
