@@ -11,21 +11,30 @@ Multi-user YOLO annotation and training platform built with Flask, SocketIO, and
 ### Annotation
 - **Bounding Box** — Click-and-drag rectangle annotation
 - **Polygon Segmentation** — Multi-point polygon annotation with vertex editing (add/delete/drag vertices)
-- **Auto-Annotate** — Run YOLO inference on images with class filtering, then accept/reject predictions
-- **Custom Models** — Browse and select `.pt` model files for inference
+- **Auto-Annotate** — Run YOLO inference on all images with class filtering, confidence/IoU thresholds, and batch accept/reject (supports both detection and segmentation models)
+- **Inference Preview** — Run single-image inference with adjustable confidence, visualize detections on canvas, then accept or clear
+- **Model Browser** — Browse and select `.pt` model files from allowed directories; shared model list between inference and auto-annotate
+- **Batch Operations** — Multi-select images with checkboxes for bulk delete, relabel, or reassign
 - **Undo/Redo** — `Ctrl+Z` undo support for annotations
 - **Keyboard Shortcuts** — `B` Draw, `G` Polygon, `V` Select, `Del` Delete, `A/D` Navigate, `Ctrl+S` Save
+
+### Model Management
+- **Validation Dashboard** — Run YOLO validation with per-class metrics (mAP50, mAP50-95, precision, recall), confusion matrix, and clickable training plots
+- **Model Export** — Export models to 17 formats: ONNX, TorchScript, OpenVINO, TensorRT, CoreML, SavedModel, TFLite, PB, EdgeTPU, TF.js, PaddlePaddle, MNN, NCNN, IMX, RKNN, ExecuTorch, Axelera — with format-specific options (FP16, dynamic axes, ONNX simplify)
+- **Model Benchmark** — Compare inference speed across export formats with background execution
+- **Dataset Split** — Split dataset into train/val/test sets with configurable ratios
 
 ### Collaboration
 - **Multi-User Rooms** — Create/join rooms with unique codes
 - **Private/Public Rooms** — Private rooms require owner approval to join
 - **Real-Time Sync** — WebSocket-based live updates for labels, assignments, and chat
-- **In-App Chat** — Room-scoped messaging with sound notifications
-- **Image Assignment** — Assign images to specific annotators with ratio-based distribution
+- **Online Presence** — Green ring indicators on member avatars; text-based connection status
+- **In-App Chat** — Room-scoped messaging with sound notifications and online member highlighting
+- **Image Assignment** — Assign images to specific annotators with ratio-based distribution and colored badge chips
 - **Editor Tracking** — See who last edited each image with color-coded indicators
 
 ### Training & Export
-- **YOLO Training** — Launch model training directly from the app with configurable hyperparameters
+- **YOLO Training** — Launch model training directly from the app with configurable hyperparameters (learning rate, loss weights, augmentation)
 - **Export Formats** — YOLO (TXT + data.yaml), COCO (JSON with polygon segmentation), Pascal VOC (XML)
 - **Dataset Statistics** — Per-class distribution, annotation counts, and progress tracking
 
@@ -64,6 +73,7 @@ annotation-app/
 │   ├── folder_routes.py      # File/folder browsing
 │   ├── image_routes.py       # Image listing, labels CRUD
 │   ├── inference_routes.py   # YOLO inference & auto-annotate
+│   ├── model_routes.py       # Validate, export, benchmark, split
 │   ├── training_routes.py    # Model training management
 │   ├── export_routes.py      # Dataset export
 │   ├── class_routes.py       # Annotation class management
