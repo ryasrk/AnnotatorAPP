@@ -9,15 +9,24 @@
     </div>
     <div class="mode-fields hidden" id="singleFolderFields">
       <label id="singleFolderLabel">Folder</label>
-      <input type="text" id="singleFolderInput" placeholder="/path/to/folder">
+      <div style="display:flex; gap:6px; margin-bottom:4px;">
+        <input type="text" id="singleFolderInput" placeholder="/path/to/folder" style="flex:1; margin-bottom:0;">
+        <button class="btn btn-secondary" style="white-space:nowrap; padding:6px 12px;" onclick="browseFolders(document.getElementById('singleFolderInput').value || '', 'singleFolderBrowser', 'singleFolderInput')">📁 Browse</button>
+      </div>
       <div class="folder-browser" id="singleFolderBrowser"></div>
     </div>
     <div class="mode-fields" id="dualFolderFields">
       <label>Images Directory</label>
-      <input type="text" id="imgDirInput" placeholder="/path/to/images">
+      <div style="display:flex; gap:6px; margin-bottom:4px;">
+        <input type="text" id="imgDirInput" placeholder="/path/to/images" style="flex:1; margin-bottom:0;">
+        <button class="btn btn-secondary" style="white-space:nowrap; padding:6px 12px;" onclick="browseFolders(document.getElementById('imgDirInput').value || '', 'imgDirBrowser', 'imgDirInput')">📁 Browse</button>
+      </div>
       <div class="folder-browser" id="imgDirBrowser"></div>
       <label>Labels Directory (optional — auto-detects sibling "labels" folder)</label>
-      <input type="text" id="lblDirInput" placeholder="/path/to/labels">
+      <div style="display:flex; gap:6px; margin-bottom:4px;">
+        <input type="text" id="lblDirInput" placeholder="/path/to/labels" style="flex:1; margin-bottom:0;">
+        <button class="btn btn-secondary" style="white-space:nowrap; padding:6px 12px;" onclick="browseFolders(document.getElementById('lblDirInput').value || '', 'lblDirBrowser', 'lblDirInput')">📁 Browse</button>
+      </div>
       <div class="folder-browser" id="lblDirBrowser"></div>
     </div>
     <div class="modal-actions">
@@ -78,8 +87,8 @@
     <h2 style="color:#e94560;">🗑 Delete Room</h2>
     <p style="font-size:13px; color:#ccc; margin:12px 0;">Are you sure you want to <strong style="color:#e94560;">permanently delete</strong> this room?</p>
     <p style="font-size:12px; color:#888; margin-bottom:8px;">All annotations, assignments, and chat messages will be lost.</p>
-    <p style="font-size:12px; color:#888; margin-bottom:16px;">Type the room name to confirm:</p>
-    <input type="text" id="deleteRoomConfirmInput" placeholder="Room name" style="width:100%; padding:8px 10px; border:1px solid #e94560; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px; text-align:center; margin-bottom:12px;">
+    <p style="font-size:12px; color:#888; margin-bottom:16px;">Type the <strong>room code</strong> to confirm:</p>
+    <input type="text" id="deleteRoomConfirmInput" placeholder="6-char room code" style="width:100%; padding:8px 10px; border:1px solid #e94560; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px; text-align:center; margin-bottom:12px; text-transform:uppercase; font-family:monospace; letter-spacing:2px;">
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('deleteRoomModal')">Cancel</button>
       <button class="btn" id="deleteRoomBtn" style="background:#4a0f0f; color:#e94560; border-color:#e94560;" onclick="executeDeleteRoom()">Delete Forever</button>
@@ -124,6 +133,19 @@
   </div>
 </div>
 
+<!-- Assign Members Modal -->
+<div class="modal-overlay" id="assignModal">
+  <div class="modal" style="width:420px; max-height:80vh;">
+    <h2>👥 Assign Members</h2>
+    <p style="color:#888; font-size:12px; margin-bottom:12px;">Distribute images among room members for annotation tasks.</p>
+    <div id="assignMemberList" style="max-height:300px; overflow-y:auto; font-size:12px; margin-bottom:12px;"></div>
+    <div class="modal-actions" style="gap:8px;">
+      <button class="btn btn-primary" onclick="distributeAssignments(); closeModal('assignModal')">✅ Set Assignments</button>
+      <button class="btn btn-secondary" onclick="closeModal('assignModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Shortcuts Modal -->
 <div class="modal-overlay" id="shortcutsModal">
   <div class="modal shortcuts-modal">
@@ -135,12 +157,18 @@
       <div class="shortcut-row"><kbd>W</kbd> <span>Previous page</span></div>
       <div class="shortcut-row"><kbd>S</kbd> <span>Next page (when not in input)</span></div>
       <div class="shortcut-section">Annotation</div>
-      <div class="shortcut-row"><kbd>B</kbd> <span>Draw mode</span></div>
+      <div class="shortcut-row"><kbd>B</kbd> <span>Draw bbox mode</span></div>
+      <div class="shortcut-row"><kbd>G</kbd> <span>Polygon mode</span></div>
       <div class="shortcut-row"><kbd>V</kbd> <span>Select mode</span></div>
+      <div class="shortcut-row"><kbd>Esc</kbd> <span>Cancel polygon / close modal</span></div>
       <div class="shortcut-row"><kbd>F</kbd> <span>Fit image to screen</span></div>
-      <div class="shortcut-row"><kbd>Del</kbd> <span>Delete selected box</span></div>
+      <div class="shortcut-row"><kbd>Del</kbd> <span>Delete selected annotation</span></div>
       <div class="shortcut-row"><kbd>Ctrl+S</kbd> <span>Save labels</span></div>
       <div class="shortcut-row"><kbd>Ctrl+Z</kbd> <span>Undo last action</span></div>
+      <div class="shortcut-section">Polygon (in select mode)</div>
+      <div class="shortcut-row"><span>Drag vertex</span> <span>Move polygon point</span></div>
+      <div class="shortcut-row"><span>Double-click edge</span> <span>Add vertex</span></div>
+      <div class="shortcut-row"><span>Right-click vertex</span> <span>Delete vertex</span></div>
       <div class="shortcut-section">Panels</div>
       <div class="shortcut-row"><kbd>?</kbd> <span>Show this help</span></div>
       <div class="shortcut-row"><kbd>C</kbd> <span>Toggle chat panel</span></div>

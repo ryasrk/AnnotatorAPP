@@ -73,15 +73,32 @@ def export_coco(target_dir, train_imgs, valid_imgs):
                 w, h = 640, 640
             coco["images"].append({"id": img_id, "file_name": img_name, "width": w, "height": h})
             for lbl in read_labels(img_name):
-                bw = lbl["w"] * w
-                bh = lbl["h"] * h
-                bx = (lbl["cx"] - lbl["w"] / 2) * w
-                by = (lbl["cy"] - lbl["h"] / 2) * h
-                coco["annotations"].append({
+                ann = {
                     "id": ann_id, "image_id": img_id, "category_id": lbl["class_id"],
-                    "bbox": [round(bx, 2), round(by, 2), round(bw, 2), round(bh, 2)],
-                    "area": round(bw * bh, 2), "iscrowd": 0,
-                })
+                    "iscrowd": 0,
+                }
+                if lbl.get("type") == "polygon" and "points" in lbl:
+                    # Polygon segmentation
+                    flat = []
+                    for pt in lbl["points"]:
+                        flat.extend([round(pt[0] * w, 2), round(pt[1] * h, 2)])
+                    ann["segmentation"] = [flat]
+                    xs = [pt[0] * w for pt in lbl["points"]]
+                    ys = [pt[1] * h for pt in lbl["points"]]
+                    bx = min(xs)
+                    by = min(ys)
+                    bw = max(xs) - bx
+                    bh = max(ys) - by
+                    ann["bbox"] = [round(bx, 2), round(by, 2), round(bw, 2), round(bh, 2)]
+                    ann["area"] = round(bw * bh, 2)
+                else:
+                    bw = lbl["w"] * w
+                    bh = lbl["h"] * h
+                    bx = (lbl["cx"] - lbl["w"] / 2) * w
+                    by = (lbl["cy"] - lbl["h"] / 2) * h
+                    ann["bbox"] = [round(bx, 2), round(by, 2), round(bw, 2), round(bh, 2)]
+                    ann["area"] = round(bw * bh, 2)
+                coco["annotations"].append(ann)
                 ann_id += 1
         out_json = target_dir / split_name / f"{split_name}.json"
         with open(out_json, "w") as f:
@@ -108,10 +125,18 @@ def export_voc(target_dir, train_imgs, valid_imgs):
         for lbl in labels:
             cls_name = state.CLASS_NAMES[lbl["class_id"]] if lbl["class_id"] < len(state.CLASS_NAMES) else f"class_{lbl['class_id']}"
             cls_name = html_escape(cls_name)
-            xmin = max(0, int((lbl["cx"] - lbl["w"] / 2) * img_w))
-            ymin = max(0, int((lbl["cy"] - lbl["h"] / 2) * img_h))
-            xmax = min(img_w, int((lbl["cx"] + lbl["w"] / 2) * img_w))
-            ymax = min(img_h, int((lbl["cy"] + lbl["h"] / 2) * img_h))
+            if lbl.get("type") == "polygon" and "points" in lbl:
+                xs = [pt[0] * img_w for pt in lbl["points"]]
+                ys = [pt[1] * img_h for pt in lbl["points"]]
+                xmin = max(0, int(min(xs)))
+                ymin = max(0, int(min(ys)))
+                xmax = min(img_w, int(max(xs)))
+                ymax = min(img_h, int(max(ys)))
+            else:
+                xmin = max(0, int((lbl["cx"] - lbl["w"] / 2) * img_w))
+                ymin = max(0, int((lbl["cy"] - lbl["h"] / 2) * img_h))
+                xmax = min(img_w, int((lbl["cx"] + lbl["w"] / 2) * img_w))
+                ymax = min(img_h, int((lbl["cy"] + lbl["h"] / 2) * img_h))
             xml += f'  <object>\n    <name>{cls_name}</name>\n    <bndbox>\n'
             xml += f'      <xmin>{xmin}</xmin><ymin>{ymin}</ymin><xmax>{xmax}</xmax><ymax>{ymax}</ymax>\n'
             xml += f'    </bndbox>\n  </object>\n'

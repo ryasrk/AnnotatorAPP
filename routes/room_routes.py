@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, session
 
 from auth import login_required, get_current_user
+from config import BASE_DIR
 from database import get_db, get_db_ctx
 from extensions import socketio
 from services.image_service import reload_dataset
@@ -276,10 +277,9 @@ def api_enter_room(room_id):
         labels_dir = Path(room["labels_dir"]) if room["labels_dir"] else images_dir.parent / "labels"
         export_dir = Path(room["export_dir"]) if room["export_dir"] else images_dir.parent / "export"
     else:
-        images_dir = Path("/tmp/nexus-blank")
-        labels_dir = Path("/tmp/nexus-blank")
-        export_dir = Path("/tmp/nexus-blank")
-        images_dir.mkdir(parents=True, exist_ok=True)
+        images_dir = BASE_DIR
+        labels_dir = BASE_DIR
+        export_dir = BASE_DIR
 
     # Load room classes
     db2 = get_db()

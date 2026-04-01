@@ -37,6 +37,8 @@ PORT = int(os.environ.get("PORT", 5000))
 # Allowed roots for folder browsing and opening (security)
 ALLOWED_ROOTS = [
     str(BASE_DIR),
+    "/tmp",
+    "/home",
     os.environ.get("ALLOWED_ROOT_1", ""),
     os.environ.get("ALLOWED_ROOT_2", ""),
 ]

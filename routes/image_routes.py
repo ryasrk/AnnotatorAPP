@@ -116,13 +116,33 @@ def api_save_labels(image_name):
     validated = []
     for lbl in labels:
         try:
-            validated.append({
-                "class_id": int(lbl["class_id"]),
-                "cx": max(0.0, min(1.0, float(lbl["cx"]))),
-                "cy": max(0.0, min(1.0, float(lbl["cy"]))),
-                "w": max(0.0, min(1.0, float(lbl["w"]))),
-                "h": max(0.0, min(1.0, float(lbl["h"]))),
-            })
+            lbl_type = lbl.get("type", "bbox")
+            if lbl_type == "polygon" and "points" in lbl:
+                pts = lbl["points"]
+                if not isinstance(pts, list) or len(pts) < 3:
+                    return jsonify({"error": "Polygon must have at least 3 points"}), 400
+                clean_pts = []
+                for pt in pts:
+                    if not isinstance(pt, (list, tuple)) or len(pt) != 2:
+                        return jsonify({"error": "Invalid polygon point"}), 400
+                    clean_pts.append([
+                        max(0.0, min(1.0, float(pt[0]))),
+                        max(0.0, min(1.0, float(pt[1]))),
+                    ])
+                validated.append({
+                    "type": "polygon",
+                    "class_id": int(lbl["class_id"]),
+                    "points": clean_pts,
+                })
+            else:
+                validated.append({
+                    "type": "bbox",
+                    "class_id": int(lbl["class_id"]),
+                    "cx": max(0.0, min(1.0, float(lbl["cx"]))),
+                    "cy": max(0.0, min(1.0, float(lbl["cy"]))),
+                    "w": max(0.0, min(1.0, float(lbl["w"]))),
+                    "h": max(0.0, min(1.0, float(lbl["h"]))),
+                })
         except (KeyError, ValueError, TypeError):
             return jsonify({"error": "Invalid label format"}), 400
 

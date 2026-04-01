@@ -36,6 +36,12 @@ let dragStart = null;
 let resizing = false;
 let resizeHandle = null;
 
+// Polygon drawing state
+let polygonPoints = [];        // in-progress polygon (canvas coords)
+let polygonDragging = false;   // dragging a polygon vertex
+let polygonDragIdx = -1;       // index of vertex being dragged
+let polygonHoverIdx = -1;      // vertex under cursor (for highlight)
+
 const BBOX_COLORS = ['#e94560', '#4caf50', '#2196f3', '#ff9800', '#9c27b0', '#00bcd4'];
 const HANDLE_SIZE = 6;
 const PER_PAGE = 100;
@@ -1459,6 +1465,11 @@ async function loadAssignments() {
     updateAssigneeBadge();
 }
 
+function openAssignModal() {
+    renderAssignMemberList();
+    openModal('assignModal');
+}
+
 function renderAssignMemberList() {
     const container = document.getElementById('assignMemberList');
     if (!roomMembers.length) { container.innerHTML = '<div style="color:#666; padding:4px;">No members</div>'; return; }
@@ -1663,6 +1674,7 @@ function acceptInference() {
     const count = _inferenceDetections.length;
     for (const det of _inferenceDetections) {
         currentLabels.push({
+            type: 'bbox',
             class_id: classMap[det.class_id] !== undefined ? classMap[det.class_id] : det.class_id,
             cx: det.cx, cy: det.cy,
             w: det.w, h: det.h,
@@ -1970,10 +1982,13 @@ function renderImageList() {
         const dotClass = imgItem.annotated ? 'annotated' : 'empty';
         const globalNum = imgItem.global_index || (idx + 1);
         const assign = _assignments[imgItem.name];
+        const editor = imageEdits[imgItem.name];
         let cls = 'image-item' + (isSelected ? ' active' : '');
-        let html = '<div class="' + cls + '" onclick="' + (batchMode ? 'toggleBatchImage(\'' + escHtml(imgItem.name) + '\', event)' : 'selectImage(' + idx + ')') + '" title="' + escHtml(imgItem.name) + '">';
+        let style = '';
+        if (editor && !isSelected) style = 'border-left:3px solid ' + (editor.color || '#888') + '; background:' + (editor.color || '#888') + '15;';
+        let html = '<div class="' + cls + '" style="' + style + '" onclick="' + (batchMode ? 'toggleBatchImage(\'' + escHtml(imgItem.name) + '\', event)' : 'selectImage(' + idx + ')') + '" title="' + escHtml(imgItem.name) + (editor ? ' | Last edit: ' + escHtml(editor.display_name || editor.username || '') : '') + '">';
         html += '<span class="item-number">' + globalNum + '</span>';
-        if (assign) html += '<span style="width:6px;height:6px;border-radius:50%;background:' + (assign.color || '#888') + ';flex-shrink:0;"></span>';
+        if (assign) html += '<span style="width:6px;height:6px;border-radius:50%;background:' + (assign.color || '#888') + ';flex-shrink:0;" title="Assigned: ' + escHtml(assign.display_name || '') + '"></span>';
         html += '<span class="dot ' + dotClass + '"></span>';
         html += '<span class="name">' + escHtml(imgItem.name) + '</span>';
         html += '<span class="box-count">' + boxCount + '</span>';
@@ -1989,6 +2004,32 @@ function initAnnotator() {
     canvas = document.getElementById('annotationCanvas');
     ctx = canvas.getContext('2d');
     setupEvents();
+
+    // Reset state from previous room
+    loadedImages = [];
+    totalImages = 0;
+    totalPages = 0;
+    currentPage = 0;
+    currentGlobalIndex = -1;
+    currentImageName = null;
+    currentLabels = [];
+    undoStack = [];
+    selectedBoxIdx = -1;
+    hasUnsavedChanges = false;
+    imageEdits = {};
+    imgLoaded = false;
+    polygonPoints = [];
+    drawing = false;
+    drawStart = null;
+    drawCurrent = null;
+    _inferenceDetections = [];
+
+    // Clear canvas
+    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    document.getElementById('bboxList').innerHTML = '<div style="padding:16px;color:#666;font-size:12px;">No annotations yet</div>';
+    document.getElementById('imageList').innerHTML = '';
+    document.getElementById('imageInfo').textContent = 'No image selected';
+
     loadCurrentDirs();
 
     if (currentRoom && currentRoom.blank) {
@@ -2032,18 +2073,21 @@ async function loadLabels(imageName) {
 
 async function saveLabels() {
     if (!currentImageName) return;
-    const res = await fetch('/api/labels/' + encodeURIComponent(currentImageName), {
+    // Capture current state before any async operations
+    const saveName = currentImageName;
+    const saveData = JSON.parse(JSON.stringify(currentLabels));
+    hasUnsavedChanges = false;
+    const res = await fetch('/api/labels/' + encodeURIComponent(saveName), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ labels: currentLabels }),
+        body: JSON.stringify({ labels: saveData }),
     });
     const data = await res.json();
     if (data.status === 'saved') {
-        showToast('Saved ' + data.count + ' boxes');
-        hasUnsavedChanges = false;
-        const item = loadedImages.find(i => i.name === currentImageName);
-        if (item) { item.annotated = currentLabels.length > 0; item.bbox_count = currentLabels.length; }
+        showToast('Saved ' + data.count + ' labels for ' + saveName);
+        const item = loadedImages.find(i => i.name === saveName);
+        if (item) { item.annotated = saveData.length > 0; item.bbox_count = saveData.length; }
         if (currentUser) {
-            imageEdits[currentImageName] = { username: currentUser.username, display_name: currentUser.display_name, color: currentUser.color };
+            imageEdits[saveName] = { username: currentUser.username, display_name: currentUser.display_name, color: currentUser.color };
         }
         renderImageList();
         updateStats();
@@ -2197,16 +2241,19 @@ function confirmDeleteRoom() {
 
 async function executeDeleteRoom() {
     if (!currentRoom) return;
-    const typed = document.getElementById('deleteRoomConfirmInput').value.trim();
-    const roomName = currentRoom.room_name || currentRoom.name || '';
-    if (typed !== roomName) {
-        showToast('Room name does not match', true);
+    const typed = document.getElementById('deleteRoomConfirmInput').value.trim().toUpperCase();
+    const roomCode = (currentRoom.room_code || currentRoom.code || '').toUpperCase();
+    if (typed !== roomCode) {
+        showToast('Room code does not match', true);
         return;
     }
     const btn = document.getElementById('deleteRoomBtn');
     btn.disabled = true; btn.textContent = 'Deleting...';
     try {
-        const res = await fetch('/api/rooms/' + currentRoom.room_id, { method: 'DELETE' });
+        const res = await fetch('/api/rooms/' + currentRoom.room_id, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+        });
         const data = await res.json();
         if (data.error) { showToast(data.error, true); btn.disabled = false; btn.textContent = 'Delete Forever'; return; }
         showToast('Room deleted');
@@ -2222,9 +2269,9 @@ async function executeDeleteRoom() {
 // =============================================================================
 // Image Selection
 // =============================================================================
-function selectImage(index) {
+async function selectImage(index) {
     if (index < 0 || index >= loadedImages.length) return;
-    if (hasUnsavedChanges && currentImageName) saveLabels();
+    if (hasUnsavedChanges && currentImageName) await saveLabels();
     currentGlobalIndex = index;
     const item = loadedImages[index];
     currentImageName = item.name;
@@ -2275,17 +2322,29 @@ function _getClassName(classId) {
 function renderBboxList() {
     const list = document.getElementById('bboxList');
     if (currentLabels.length === 0) {
-        list.innerHTML = '<div style="padding:16px;color:#666;font-size:12px;">No boxes yet. Draw on the image.</div>';
+        list.innerHTML = '<div style="padding:16px;color:#666;font-size:12px;">No annotations yet. Draw on the image.</div>';
         return;
     }
     list.innerHTML = currentLabels.map((lbl, i) => {
         const color = BBOX_COLORS[lbl.class_id % BBOX_COLORS.length];
         const className = _getClassName(lbl.class_id);
+        const isPolygon = lbl.type === 'polygon';
+        const typeIcon = isPolygon ? '🔷' : '⬜';
+        let sizeInfo;
+        if (isPolygon) {
+            sizeInfo = lbl.points.length + ' pts';
+        } else {
+            const x1 = Math.round((lbl.cx - lbl.w / 2) * imgW);
+            const y1 = Math.round((lbl.cy - lbl.h / 2) * imgH);
+            const x2 = Math.round((lbl.cx + lbl.w / 2) * imgW);
+            const y2 = Math.round((lbl.cy + lbl.h / 2) * imgH);
+            sizeInfo = x1 + ',' + y1 + ' → ' + x2 + ',' + y2;
+        }
         return '<div class="bbox-item ' + (i === selectedBoxIdx ? 'selected' : '') +
             '" onclick="selectBox(' + i + ')">' +
-            '<div class="bbox-color" style="background:' + color + '"></div>' +
+            '<div class="bbox-color" style="background:' + color + '">' + typeIcon + '</div>' +
             '<span class="bbox-class-edit" ondblclick="event.stopPropagation();editBoxClass(' + i + ', this)" title="Double-click to change class">' + escHtml(className) + '</span>' +
-            '<div class="bbox-info">' + (lbl.w * 100).toFixed(1) + '% × ' + (lbl.h * 100).toFixed(1) + '%</div>' +
+            '<div class="bbox-info">' + sizeInfo + '</div>' +
             '<div class="bbox-delete" onclick="event.stopPropagation();deleteBox(' + i + ')">✕</div></div>';
     }).join('');
 }
@@ -2341,30 +2400,103 @@ function draw() {
     ctx.drawImage(img, offsetX, offsetY, imgW * scale, imgH * scale);
     currentLabels.forEach((lbl, i) => {
         const color = BBOX_COLORS[lbl.class_id % BBOX_COLORS.length];
-        const x = offsetX + (lbl.cx - lbl.w / 2) * imgW * scale;
-        const y = offsetY + (lbl.cy - lbl.h / 2) * imgH * scale;
-        const w = lbl.w * imgW * scale;
-        const h = lbl.h * imgH * scale;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = i === selectedBoxIdx ? 3 : 2;
-        ctx.strokeRect(x, y, w, h);
-        ctx.fillStyle = color + '20';
-        ctx.fillRect(x, y, w, h);
-        ctx.fillStyle = color;
-        ctx.font = '12px monospace';
-        const label = '' + lbl.class_id;
-        ctx.fillRect(x, y - 18, ctx.measureText(label).width + 8, 18);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(label, x + 4, y - 5);
-        if (i === selectedBoxIdx) drawHandles(x, y, w, h, color);
+        if (lbl.type === 'polygon' && lbl.points) {
+            drawPolygonAnnotation(lbl, i, color);
+        } else {
+            const x = offsetX + (lbl.cx - lbl.w / 2) * imgW * scale;
+            const y = offsetY + (lbl.cy - lbl.h / 2) * imgH * scale;
+            const w = lbl.w * imgW * scale;
+            const h = lbl.h * imgH * scale;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = i === selectedBoxIdx ? 3 : 2;
+            ctx.strokeRect(x, y, w, h);
+            ctx.fillStyle = color + '20';
+            ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = color;
+            ctx.font = '12px monospace';
+            const label = '' + lbl.class_id;
+            ctx.fillRect(x, y - 18, ctx.measureText(label).width + 8, 18);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(label, x + 4, y - 5);
+            if (i === selectedBoxIdx) drawHandles(x, y, w, h, color);
+        }
     });
+    // In-progress bbox
     if (drawing && drawStart && drawCurrent) {
         const x1 = Math.min(drawStart.x, drawCurrent.x), y1 = Math.min(drawStart.y, drawCurrent.y);
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
         ctx.strokeRect(x1, y1, Math.abs(drawCurrent.x - drawStart.x), Math.abs(drawCurrent.y - drawStart.y));
         ctx.setLineDash([]);
     }
+    // In-progress polygon
+    if (mode === 'polygon' && polygonPoints.length > 0) {
+        drawInProgressPolygon();
+    }
     drawInferenceOverlays();
+}
+
+function drawPolygonAnnotation(lbl, idx, color) {
+    const pts = lbl.points.map(p => [offsetX + p[0] * imgW * scale, offsetY + p[1] * imgH * scale]);
+    if (pts.length < 2) return;
+    // Fill
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = color + '20';
+    ctx.fill();
+    // Stroke
+    ctx.strokeStyle = color;
+    ctx.lineWidth = idx === selectedBoxIdx ? 3 : 2;
+    ctx.stroke();
+    // Label at centroid
+    let cx = 0, cy = 0;
+    pts.forEach(p => { cx += p[0]; cy += p[1]; });
+    cx /= pts.length; cy /= pts.length;
+    const label = '' + lbl.class_id;
+    ctx.fillStyle = color;
+    ctx.font = '12px monospace';
+    ctx.fillRect(cx - 4, cy - 18, ctx.measureText(label).width + 8, 18);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, cx, cy - 5);
+    // Vertex handles when selected
+    if (idx === selectedBoxIdx) {
+        pts.forEach((p, vi) => {
+            ctx.beginPath();
+            ctx.arc(p[0], p[1], vi === polygonHoverIdx ? 6 : 4, 0, Math.PI * 2);
+            ctx.fillStyle = vi === polygonHoverIdx ? '#fff' : color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+            ctx.stroke();
+        });
+    }
+}
+
+function drawInProgressPolygon() {
+    if (polygonPoints.length === 0) return;
+    ctx.beginPath();
+    ctx.moveTo(polygonPoints[0].x, polygonPoints[0].y);
+    for (let i = 1; i < polygonPoints.length; i++) {
+        ctx.lineTo(polygonPoints[i].x, polygonPoints[i].y);
+    }
+    ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+    ctx.stroke(); ctx.setLineDash([]);
+    // Draw vertices
+    polygonPoints.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, i === 0 ? 7 : 4, 0, Math.PI * 2);
+        ctx.fillStyle = i === 0 ? '#00ff88' : '#fff';
+        ctx.fill();
+        ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 1;
+        ctx.stroke();
+    });
+    // Hint: close zone around first point
+    if (polygonPoints.length >= 3) {
+        ctx.beginPath();
+        ctx.arc(polygonPoints[0].x, polygonPoints[0].y, 12, 0, Math.PI * 2);
+        ctx.strokeStyle = '#00ff8866'; ctx.lineWidth = 1;
+        ctx.stroke();
+    }
 }
 
 function drawHandles(x, y, w, h, color) {
@@ -2389,6 +2521,107 @@ function canvasToYolo(cx, cy, cw, ch) { return { cx:(cx-offsetX)/(imgW*scale), c
 function yoloToCanvas(lbl) { return { x:offsetX+(lbl.cx-lbl.w/2)*imgW*scale, y:offsetY+(lbl.cy-lbl.h/2)*imgH*scale, w:lbl.w*imgW*scale, h:lbl.h*imgH*scale }; }
 
 // =============================================================================
+// Polygon Helpers
+// =============================================================================
+function onPolygonClick(mx, my) {
+    // Close polygon if clicking near first point (>= 3 points)
+    if (polygonPoints.length >= 3) {
+        const fp = polygonPoints[0];
+        if (Math.abs(mx - fp.x) < 12 && Math.abs(my - fp.y) < 12) {
+            finishPolygon();
+            return;
+        }
+    }
+    polygonPoints.push({x: mx, y: my});
+    draw();
+}
+
+function onPolygonDblClick(mx, my) {
+    if (polygonPoints.length >= 3) {
+        finishPolygon();
+    }
+}
+
+function finishPolygon() {
+    if (polygonPoints.length < 3) { polygonPoints = []; draw(); return; }
+    pushUndo();
+    const pts = polygonPoints.map(p => [
+        Math.max(0, Math.min(1, (p.x - offsetX) / (imgW * scale))),
+        Math.max(0, Math.min(1, (p.y - offsetY) / (imgH * scale))),
+    ]);
+    currentLabels.push({
+        type: 'polygon',
+        class_id: parseInt(document.getElementById('classSelect').value),
+        points: pts,
+    });
+    selectedBoxIdx = currentLabels.length - 1;
+    hasUnsavedChanges = true;
+    polygonPoints = [];
+    renderBboxList();
+    draw();
+}
+
+function pointInPolygon(mx, my, lbl) {
+    const pts = lbl.points.map(p => [offsetX + p[0] * imgW * scale, offsetY + p[1] * imgH * scale]);
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i][0], yi = pts[i][1];
+        const xj = pts[j][0], yj = pts[j][1];
+        if (((yi > my) !== (yj > my)) && (mx < (xj - xi) * (my - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+function deletePolygonVertex(idx, vertexIdx) {
+    const lbl = currentLabels[idx];
+    if (!lbl || lbl.type !== 'polygon') return;
+    if (lbl.points.length <= 3) {
+        // Can't have < 3 points, delete the entire polygon
+        deleteBox(idx);
+        return;
+    }
+    pushUndo();
+    lbl.points.splice(vertexIdx, 1);
+    hasUnsavedChanges = true;
+    polygonHoverIdx = -1;
+    renderBboxList();
+    draw();
+}
+
+function addPolygonVertex(idx, mx, my) {
+    const lbl = currentLabels[idx];
+    if (!lbl || lbl.type !== 'polygon') return;
+    // Find closest edge to insert
+    const pts = lbl.points.map(p => [offsetX + p[0] * imgW * scale, offsetY + p[1] * imgH * scale]);
+    let bestDist = Infinity, bestEdge = 0;
+    for (let i = 0; i < pts.length; i++) {
+        const j = (i + 1) % pts.length;
+        const d = distToSegment(mx, my, pts[i][0], pts[i][1], pts[j][0], pts[j][1]);
+        if (d < bestDist) { bestDist = d; bestEdge = j; }
+    }
+    pushUndo();
+    const newPt = [
+        Math.max(0, Math.min(1, (mx - offsetX) / (imgW * scale))),
+        Math.max(0, Math.min(1, (my - offsetY) / (imgH * scale))),
+    ];
+    lbl.points.splice(bestEdge, 0, newPt);
+    hasUnsavedChanges = true;
+    renderBboxList();
+    draw();
+}
+
+function distToSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+// =============================================================================
 // Mouse Events
 // =============================================================================
 let eventsSetup = false;
@@ -2398,6 +2631,8 @@ function setupEvents() {
     canvas.addEventListener('mousedown', onMouseDown);
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('dblclick', onCanvasDblClick);
+    canvas.addEventListener('contextmenu', onCanvasContextMenu);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('resize', () => { if (imgLoaded) fitToScreen(); });
     window.addEventListener('keydown', onKeyDown);
@@ -2407,6 +2642,7 @@ function setupEvents() {
     document.getElementById('undoBtn').addEventListener('click', undo);
     document.getElementById('zoomFit').addEventListener('click', fitToScreen);
     document.getElementById('drawTool').addEventListener('click', () => setMode('draw'));
+    document.getElementById('polygonTool').addEventListener('click', () => setMode('polygon'));
     document.getElementById('selectTool').addEventListener('click', () => setMode('select'));
     document.querySelectorAll('.filter-bar button').forEach(btn => { btn.addEventListener('click', () => applyFilter(btn.dataset.filter)); });
     let searchTimeout;
@@ -2419,8 +2655,6 @@ function setupEvents() {
     document.getElementById('pageNext').addEventListener('click', () => { if (currentPage < totalPages - 1) loadImagePage(currentPage + 1).then(() => { if (loadedImages.length > 0) selectImage(0); }); });
     document.getElementById('pageLast').addEventListener('click', () => { if (totalPages > 1) loadImagePage(totalPages - 1).then(() => { if (loadedImages.length > 0) selectImage(0); }); });
     document.getElementById('openFolderBtn').addEventListener('click', () => {
-        if (openFolderMode === 'images_labels') { browseFolders(document.getElementById('imgDirInput').value || '', 'imgDirBrowser', 'imgDirInput'); }
-        else { browseFolders(document.getElementById('singleFolderInput').value || '', 'singleFolderBrowser', 'singleFolderInput'); }
         openModal('openFolderModal');
     });
     document.getElementById('editClassesBtn').addEventListener('click', openClassEditor);
@@ -2431,8 +2665,25 @@ function setupEvents() {
 function onMouseDown(e) {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (mode === 'polygon') {
+        onPolygonClick(mx, my);
+        return;
+    }
     if (mode === 'select') {
-        if (selectedBoxIdx >= 0) {
+        // Check polygon vertex drag first
+        if (selectedBoxIdx >= 0 && currentLabels[selectedBoxIdx] && currentLabels[selectedBoxIdx].type === 'polygon') {
+            const lbl = currentLabels[selectedBoxIdx];
+            for (let vi = 0; vi < lbl.points.length; vi++) {
+                const px = offsetX + lbl.points[vi][0] * imgW * scale;
+                const py = offsetY + lbl.points[vi][1] * imgH * scale;
+                if (Math.abs(mx - px) < 8 && Math.abs(my - py) < 8) {
+                    pushUndo(); polygonDragging = true; polygonDragIdx = vi;
+                    return;
+                }
+            }
+        }
+        // Check bbox handle resize
+        if (selectedBoxIdx >= 0 && currentLabels[selectedBoxIdx] && currentLabels[selectedBoxIdx].type !== 'polygon') {
             const bx = yoloToCanvas(currentLabels[selectedBoxIdx]);
             const handles = getHandlePositions(bx.x, bx.y, bx.w, bx.h);
             for (const h of handles) {
@@ -2443,15 +2694,24 @@ function onMouseDown(e) {
                 }
             }
         }
+        // Hit test all annotations (reverse order)
         for (let i = currentLabels.length-1; i >= 0; i--) {
-            const bx = yoloToCanvas(currentLabels[i]);
-            if (mx >= bx.x && mx <= bx.x+bx.w && my >= bx.y && my <= bx.y+bx.h) {
-                selectedBoxIdx = i; pushUndo(); dragging = true;
-                dragStart = {x:mx, y:my, origLabel:{...currentLabels[i]}};
-                renderBboxList(); draw(); return;
+            if (currentLabels[i].type === 'polygon') {
+                if (pointInPolygon(mx, my, currentLabels[i])) {
+                    selectedBoxIdx = i; pushUndo(); dragging = true;
+                    dragStart = {x:mx, y:my, origLabel: JSON.parse(JSON.stringify(currentLabels[i]))};
+                    polygonHoverIdx = -1; renderBboxList(); draw(); return;
+                }
+            } else {
+                const bx = yoloToCanvas(currentLabels[i]);
+                if (mx >= bx.x && mx <= bx.x+bx.w && my >= bx.y && my <= bx.y+bx.h) {
+                    selectedBoxIdx = i; pushUndo(); dragging = true;
+                    dragStart = {x:mx, y:my, origLabel:{...currentLabels[i]}};
+                    renderBboxList(); draw(); return;
+                }
             }
         }
-        selectedBoxIdx = -1; renderBboxList(); draw();
+        selectedBoxIdx = -1; polygonHoverIdx = -1; renderBboxList(); draw();
     } else if (mode === 'draw') {
         drawing = true; drawStart = {x:mx, y:my}; drawCurrent = {x:mx, y:my};
     }
@@ -2467,13 +2727,46 @@ function onMouseMove(e) {
         emitCursorThrottled(parseFloat(imgX) / imgW, parseFloat(imgY) / imgH);
     }
     if (drawing) { drawCurrent = {x:mx, y:my}; draw(); }
+    else if (polygonDragging && selectedBoxIdx >= 0 && polygonDragIdx >= 0) {
+        const lbl = currentLabels[selectedBoxIdx];
+        lbl.points[polygonDragIdx] = [
+            Math.max(0, Math.min(1, (mx - offsetX) / (imgW * scale))),
+            Math.max(0, Math.min(1, (my - offsetY) / (imgH * scale))),
+        ];
+        hasUnsavedChanges = true; draw();
+    }
     else if (dragging && selectedBoxIdx >= 0) {
-        const dx = (mx-dragStart.x)/(imgW*scale), dy = (my-dragStart.y)/(imgH*scale);
-        currentLabels[selectedBoxIdx].cx = Math.max(0,Math.min(1, dragStart.origLabel.cx+dx));
-        currentLabels[selectedBoxIdx].cy = Math.max(0,Math.min(1, dragStart.origLabel.cy+dy));
+        const lbl = currentLabels[selectedBoxIdx];
+        if (lbl.type === 'polygon') {
+            // Move entire polygon
+            const dx = (mx - dragStart.x) / (imgW * scale);
+            const dy = (my - dragStart.y) / (imgH * scale);
+            const orig = dragStart.origLabel;
+            for (let pi = 0; pi < lbl.points.length; pi++) {
+                lbl.points[pi] = [
+                    Math.max(0, Math.min(1, orig.points[pi][0] + dx)),
+                    Math.max(0, Math.min(1, orig.points[pi][1] + dy)),
+                ];
+            }
+        } else {
+            const dx = (mx-dragStart.x)/(imgW*scale), dy = (my-dragStart.y)/(imgH*scale);
+            lbl.cx = Math.max(0,Math.min(1, dragStart.origLabel.cx+dx));
+            lbl.cy = Math.max(0,Math.min(1, dragStart.origLabel.cy+dy));
+        }
         hasUnsavedChanges = true; draw();
     }
     else if (resizing && selectedBoxIdx >= 0) { resizeBox(mx, my); hasUnsavedChanges = true; draw(); }
+    else if (mode === 'select' && selectedBoxIdx >= 0 && currentLabels[selectedBoxIdx] && currentLabels[selectedBoxIdx].type === 'polygon') {
+        // Hover highlight on polygon vertices
+        const lbl = currentLabels[selectedBoxIdx];
+        let newHover = -1;
+        for (let vi = 0; vi < lbl.points.length; vi++) {
+            const px = offsetX + lbl.points[vi][0] * imgW * scale;
+            const py = offsetY + lbl.points[vi][1] * imgH * scale;
+            if (Math.abs(mx - px) < 8 && Math.abs(my - py) < 8) { newHover = vi; break; }
+        }
+        if (newHover !== polygonHoverIdx) { polygonHoverIdx = newHover; draw(); }
+    }
 }
 
 function onMouseUp(e) {
@@ -2484,7 +2777,7 @@ function onMouseUp(e) {
             const yolo = canvasToYolo(x1+w/2, y1+h/2, w, h);
             if (yolo.cx >= 0 && yolo.cy >= 0 && yolo.w > 0.005 && yolo.h > 0.005) {
                 pushUndo();
-                currentLabels.push({ class_id: parseInt(document.getElementById('classSelect').value),
+                currentLabels.push({ type: 'bbox', class_id: parseInt(document.getElementById('classSelect').value),
                     cx: Math.max(0,Math.min(1,yolo.cx)), cy: Math.max(0,Math.min(1,yolo.cy)),
                     w: Math.min(1,yolo.w), h: Math.min(1,yolo.h) });
                 selectedBoxIdx = currentLabels.length - 1;
@@ -2493,6 +2786,7 @@ function onMouseUp(e) {
         }
         drawing = false; drawStart = null; drawCurrent = null; draw();
     }
+    if (polygonDragging) { polygonDragging = false; polygonDragIdx = -1; renderBboxList(); }
     if (dragging) { dragging = false; renderBboxList(); }
     if (resizing) { resizing = false; resizeHandle = null; }
 }
@@ -2509,6 +2803,41 @@ function resizeBox(mx, my) {
     const lbl = currentLabels[selectedBoxIdx];
     lbl.cx=Math.max(0,Math.min(1,yolo.cx)); lbl.cy=Math.max(0,Math.min(1,yolo.cy));
     lbl.w=Math.min(1,yolo.w); lbl.h=Math.min(1,yolo.h);
+}
+
+function onCanvasDblClick(e) {
+    if (mode === 'polygon' && polygonPoints.length >= 3) {
+        const rect = canvas.getBoundingClientRect();
+        onPolygonDblClick(e.clientX - rect.left, e.clientY - rect.top);
+        e.preventDefault();
+    } else if (mode === 'select' && selectedBoxIdx >= 0) {
+        // Double-click on polygon edge to add vertex
+        const lbl = currentLabels[selectedBoxIdx];
+        if (lbl && lbl.type === 'polygon') {
+            const rect = canvas.getBoundingClientRect();
+            addPolygonVertex(selectedBoxIdx, e.clientX - rect.left, e.clientY - rect.top);
+            e.preventDefault();
+        }
+    }
+}
+
+function onCanvasContextMenu(e) {
+    e.preventDefault();
+    if (mode === 'select' && selectedBoxIdx >= 0) {
+        const lbl = currentLabels[selectedBoxIdx];
+        if (lbl && lbl.type === 'polygon') {
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+            for (let vi = 0; vi < lbl.points.length; vi++) {
+                const px = offsetX + lbl.points[vi][0] * imgW * scale;
+                const py = offsetY + lbl.points[vi][1] * imgH * scale;
+                if (Math.abs(mx - px) < 8 && Math.abs(my - py) < 8) {
+                    deletePolygonVertex(selectedBoxIdx, vi);
+                    return;
+                }
+            }
+        }
+    }
 }
 
 function onWheel(e) {
@@ -2535,7 +2864,9 @@ function onKeyDown(e) {
     if (e.key === 'w') { if (currentPage > 0) loadImagePage(currentPage - 1).then(() => { if (loadedImages.length > 0) selectImage(loadedImages.length - 1); }); e.preventDefault(); }
     if (e.key === 's' && !e.ctrlKey) { if (currentPage < totalPages - 1) loadImagePage(currentPage + 1).then(() => { if (loadedImages.length > 0) selectImage(0); }); e.preventDefault(); }
     if (e.key === 'b') setMode('draw');
+    if (e.key === 'g') setMode('polygon');
     if (e.key === 'v') setMode('select');
+    if (e.key === 'Escape' && mode === 'polygon' && polygonPoints.length > 0) { polygonPoints = []; draw(); e.preventDefault(); }
     if (e.key === 'f') fitToScreen();
     if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedBoxIdx >= 0) { deleteBox(selectedBoxIdx); e.preventDefault(); } }
     if (e.ctrlKey && e.key === 's') { saveLabels(); e.preventDefault(); }
@@ -2568,11 +2899,16 @@ function navigateImage(dir) {
 }
 
 function setMode(m) {
+    // Cancel in-progress polygon when switching away
+    if (mode === 'polygon' && m !== 'polygon') { polygonPoints = []; }
     mode = m;
     document.getElementById('drawTool').classList.toggle('active', m === 'draw');
+    document.getElementById('polygonTool').classList.toggle('active', m === 'polygon');
     document.getElementById('selectTool').classList.toggle('active', m === 'select');
-    canvas.style.cursor = m === 'draw' ? 'crosshair' : 'default';
-    document.getElementById('modeDisplay').textContent = 'Mode: ' + (m === 'draw' ? 'Draw' : 'Select');
+    canvas.style.cursor = (m === 'draw' || m === 'polygon') ? 'crosshair' : 'default';
+    const labels = { draw: 'Draw', select: 'Select', polygon: 'Polygon' };
+    document.getElementById('modeDisplay').textContent = 'Mode: ' + (labels[m] || m);
+    draw();
 }
 
 function pushUndo() { undoStack.push(JSON.parse(JSON.stringify(currentLabels))); if (undoStack.length > 50) undoStack.shift(); }
