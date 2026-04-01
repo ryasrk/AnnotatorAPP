@@ -2045,15 +2045,34 @@ async function openQualityMetrics() {
 let _inferenceDetections = [];
 let _modelNames = {};
 
+let _sharedModels = [];
+let _browsedModels = [];
+
+function syncModelSelects(preserveSelection) {
+    const ids = ['inferenceModelSelect', 'autoAnnotateModel'];
+    const saved = {};
+    ids.forEach(id => { const s = document.getElementById(id); if (s) saved[id] = s.value; });
+    const all = _sharedModels.concat(_browsedModels);
+    ids.forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Select model...</option>';
+        all.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.path;
+            opt.textContent = (m.browsed ? '📂 ' : '') + m.name + (m.size_mb != null ? ' (' + m.size_mb + 'MB)' : '') + (m.browsed ? ' (browsed)' : '');
+            sel.appendChild(opt);
+        });
+        if (preserveSelection && saved[id]) sel.value = saved[id];
+    });
+}
+
 async function loadInferenceModels() {
     try {
         const res = await fetch('/api/inference/models');
         const data = await res.json();
-        const sel = document.getElementById('inferenceModelSelect');
-        sel.innerHTML = '<option value="">Select model...</option>';
-        (data.models || []).forEach(m => {
-            sel.innerHTML += '<option value="' + escHtml(m.path) + '">' + escHtml(m.name) + ' (' + m.size_mb + 'MB)</option>';
-        });
+        _sharedModels = (data.models || []).map(m => ({ path: m.path, name: m.name, size_mb: m.size_mb }));
+        syncModelSelects(true);
     } catch(e) {}
 }
 
@@ -2206,20 +2225,9 @@ function switchAATab(tabId) {
 async function openAutoAnnotate() {
     openModal('autoAnnotateModal');
     switchAATab('aa-main');
-    const sel = document.getElementById('autoAnnotateModel');
-    sel.innerHTML = '<option value="">Loading models...</option>';
     document.getElementById('autoAnnotateClassesList').innerHTML = '<div style="color:#888; font-size:12px;">Select a model first</div>';
     document.getElementById('aaClassBadge').textContent = '';
-    try {
-        const res = await fetch('/api/inference/models');
-        const data = await res.json();
-        sel.innerHTML = '<option value="">Select model...</option>';
-        (data.models || []).forEach(m => {
-            sel.innerHTML += '<option value="' + escHtml(m.path) + '">' + escHtml(m.name) + ' (' + m.size_mb + 'MB)</option>';
-        });
-    } catch(e) {
-        sel.innerHTML = '<option value="">Error loading models</option>';
-    }
+    await loadInferenceModels();
     document.getElementById('autoAnnotateProgress').style.display = 'none';
     document.getElementById('autoAnnotateBtn').disabled = false;
 }
@@ -2291,18 +2299,11 @@ async function browseForModel(browsePath) {
 }
 
 function selectBrowsedModel(modelPath, modelName) {
-    const sel = document.getElementById(_modelBrowserTarget);
-    let found = false;
-    for (let i = 0; i < sel.options.length; i++) {
-        if (sel.options[i].value === modelPath) { sel.selectedIndex = i; found = true; break; }
+    if (!_browsedModels.some(m => m.path === modelPath)) {
+        _browsedModels.push({ path: modelPath, name: modelName, browsed: true });
     }
-    if (!found) {
-        const opt = document.createElement('option');
-        opt.value = modelPath;
-        opt.textContent = '📂 ' + modelName + ' (browsed)';
-        sel.appendChild(opt);
-        sel.value = modelPath;
-    }
+    syncModelSelects(true);
+    document.getElementById(_modelBrowserTarget).value = modelPath;
     closeModal('browseModelModal');
     if (_modelBrowserTarget === 'autoAnnotateModel') onAutoAnnotateModelChange();
 }
