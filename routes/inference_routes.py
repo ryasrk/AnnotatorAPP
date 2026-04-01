@@ -173,6 +173,8 @@ def api_apply_predictions():
     if not model_file.exists():
         return jsonify({"error": "Model file not found"}), 404
 
+    room_id = session.get("room_id") or state.CURRENT_ROOM_ID
+
     # Determine target images
     if mode == "selected" and image_names:
         targets = [n for n in image_names if (state.RAW_IMAGES_DIR / n).exists()]
@@ -202,8 +204,6 @@ def api_apply_predictions():
 
     if not targets:
         return jsonify({"error": "No target images found"}), 400
-
-    room_id = session.get("room_id") or state.CURRENT_ROOM_ID
 
     # Start background processing
     job_id = f"apply_{room_id or 'global'}"
