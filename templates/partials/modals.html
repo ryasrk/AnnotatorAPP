@@ -308,6 +308,9 @@
       <label style="margin-top:10px;">
         <input type="checkbox" id="autoAnnotateOverwrite"> Overwrite existing annotations
       </label>
+      <label style="margin-top:6px;">
+        <input type="checkbox" id="autoAnnotateMerge"> Merge with existing labels (keep + add new)
+      </label>
     </div>
 
     <!-- Tab 2: Settings -->
@@ -349,7 +352,7 @@
     </div>
 
     <div class="modal-actions">
-      <button class="btn" onclick="closeModal('autoAnnotateModal')">Cancel</button>
+      <button class="btn" id="autoAnnotateCancelBtn" onclick="closeModal('autoAnnotateModal')">Cancel</button>
       <button class="btn btn-primary" id="autoAnnotateBtn" onclick="startAutoAnnotate()">🚀 Start Auto-Annotate</button>
     </div>
   </div>

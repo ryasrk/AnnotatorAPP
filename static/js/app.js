@@ -2241,7 +2241,8 @@ async function openAutoAnnotate() {
     const aaBtn = document.getElementById('autoAnnotateBtn');
     aaBtn.disabled = false;
     aaBtn.textContent = '🚀 Start Auto-Annotate';
-    aaBtn.onclick = startAutoAnnotate;
+    const aaCancelBtn = document.getElementById('autoAnnotateCancelBtn');
+    if (aaCancelBtn) aaCancelBtn.textContent = 'Cancel';
 }
 
 let _modelBrowserTarget = 'autoAnnotateModel';
@@ -2407,6 +2408,7 @@ async function startAutoAnnotate() {
     const maxDet = parseInt(document.getElementById('autoAnnotateMaxDet').value);
     const mode = document.getElementById('autoAnnotateMode').value;
     const overwrite = document.getElementById('autoAnnotateOverwrite').checked;
+    const merge = document.getElementById('autoAnnotateMerge').checked;
 
     let imageNames = [];
     if (mode === 'selected') {
@@ -2428,6 +2430,7 @@ async function startAutoAnnotate() {
             max_det: maxDet,
             mode: mode,
             overwrite: overwrite,
+            merge: merge,
             image_names: imageNames,
         };
         if (selectedClasses !== null) body.selected_classes = selectedClasses;
@@ -2477,8 +2480,9 @@ function _pollAutoAnnotateProgress() {
                     ' of ' + data.total + ' images.';
                 const btn = document.getElementById('autoAnnotateBtn');
                 btn.disabled = false;
-                btn.textContent = '✖ Close';
-                btn.onclick = function() { closeModal('autoAnnotateModal'); btn.textContent = '🚀 Start Auto-Annotate'; btn.onclick = startAutoAnnotate; };
+                btn.textContent = '🔄 Restart Auto-Annotate';
+                const cancelBtn = document.getElementById('autoAnnotateCancelBtn');
+                if (cancelBtn) { cancelBtn.textContent = 'Close'; }
                 showToast('Auto-annotate complete: ' + data.saved + ' images annotated');
                 loadImagePage(currentPage);
                 updateStats();

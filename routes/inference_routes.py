@@ -163,6 +163,7 @@ def api_apply_predictions():
     image_names = data.get("image_names", [])
     mode = data.get("mode", "unannotated")  # "unannotated", "all", "selected", "annotated", "assigned"
     overwrite = data.get("overwrite", False)
+    merge = data.get("merge", False)
     class_mapping = data.get("class_mapping", None)  # optional: {model_class_id: room_class_id}
     selected_classes = data.get("selected_classes", None)  # optional: list of model class IDs to include
 
@@ -278,8 +279,9 @@ def api_apply_predictions():
             for idx, img_name in enumerate(targets):
                 img_path = state.RAW_IMAGES_DIR / img_name
 
-                # Skip if already annotated and not overwriting
-                if not overwrite:
+                # Skip if already annotated and not overwriting or merging
+                existing_labels = []
+                if not overwrite and not merge:
                     existing = read_labels(img_name)
                     if existing:
                         skipped_count += 1
@@ -287,6 +289,8 @@ def api_apply_predictions():
                             _apply_progress[job_id]["done"] = idx + 1
                             _apply_progress[job_id]["skipped"] = skipped_count
                         continue
+                elif merge:
+                    existing_labels = read_labels(img_name)
 
                 try:
                     results = model.predict(str(img_path), conf=confidence, iou=iou_thresh,
@@ -337,14 +341,18 @@ def api_apply_predictions():
                                     "h": max(0.0, min(1.0, bh)),
                                 })
 
-                    if labels:
-                        write_labels(img_name, labels)
+                    if labels or existing_labels:
+                        merged = existing_labels + labels if merge else labels
+                        write_labels(img_name, merged)
                         with state.state_lock:
                             state.image_cache[img_name] = {
                                 "annotated": True,
-                                "bbox_count": len(labels),
+                                "bbox_count": len(merged),
                             }
-                        saved_count += 1
+                        if labels:
+                            saved_count += 1
+                        else:
+                            no_detect_count += 1
                     else:
                         no_detect_count += 1
 
