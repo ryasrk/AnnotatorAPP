@@ -57,13 +57,19 @@ function initSocket() {
     socket.on('connect', () => {
         console.log('[WS] Connected');
         const wsEl = document.getElementById('wsIndicator');
-        if (wsEl) { wsEl.classList.remove('disconnected'); wsEl.title = 'WebSocket connected'; }
+        if (wsEl) { wsEl.classList.remove('disconnected'); wsEl.classList.add('connected'); wsEl.textContent = '🟢 Connected'; }
     });
 
     socket.on('disconnect', () => {
         console.log('[WS] Disconnected');
         const wsEl = document.getElementById('wsIndicator');
-        if (wsEl) { wsEl.classList.add('disconnected'); wsEl.title = 'WebSocket disconnected'; }
+        if (wsEl) { wsEl.classList.remove('connected'); wsEl.classList.add('disconnected'); wsEl.textContent = '🔴 Disconnected'; }
+    });
+
+    socket.on('connect_error', (err) => {
+        console.error('[WS] Connection error:', err.message);
+        const wsEl = document.getElementById('wsIndicator');
+        if (wsEl) { wsEl.classList.remove('connected'); wsEl.classList.add('disconnected'); wsEl.textContent = '🔴 Error'; }
     });
 
     // Room events
@@ -220,6 +226,21 @@ function initSocket() {
         const btn = document.getElementById('autoAnnotateBtn');
         if (btn) btn.disabled = false;
     });
+
+    // Model management events (validate/export/benchmark)
+    socket.on('model_job_complete', (data) => {
+        if (data.type === 'validate') {
+            showDesktopNotif('Validation Complete', 'mAP50: ' + ((data.result?.mAP50 || 0) * 100).toFixed(1) + '%');
+        } else if (data.type === 'export') {
+            showDesktopNotif('Model Export Complete', data.result?.format_label + ' — ' + data.result?.size_mb + ' MB');
+        } else if (data.type === 'benchmark') {
+            showDesktopNotif('Benchmark Complete', data.result?.benchmarks?.length + ' formats tested');
+        }
+    });
+
+    socket.on('model_job_error', (data) => {
+        showToast('Model job error (' + data.type + '): ' + (data.error || 'unknown'), true);
+    });
 }
 
 function joinSocketRoom(roomId) {
@@ -349,8 +370,8 @@ async function loadRooms() {
     list.innerHTML = data.rooms.map(r => {
         const onlineCount = onlineCounts[r.id] || 0;
         const onlineHtml = onlineCount > 0
-            ? '<div class="online-dots"><div class="online-dot" style="background:#4caf50;"></div><span class="online-count">' + onlineCount + ' online</span></div>'
-            : '<div class="online-dots"><span style="font-size:10px;color:#666;">offline</span></div>';
+            ? '<div class="online-dots"><div class="online-dot" style="background:#4caf50;"></div><span class="online-count">' + onlineCount + ' active</span></div>'
+            : '<div class="online-dots"><span style="font-size:10px;color:#888;">—</span></div>';
         return '<div class="room-card" onclick="enterRoom(' + r.id + ')">' +
             '<div class="room-icon">🏠</div>' +
             '<div class="room-details"><div class="room-name">' + escHtml(r.name) + '</div>' +
@@ -429,12 +450,16 @@ function updateTopbar() {
     document.getElementById('topbarRoomCode').textContent = currentRoom.room_code;
     document.getElementById('topbarRoomName').textContent = currentRoom.room_name;
     document.getElementById('topbarUsername').textContent = currentUser.display_name || currentUser.username;
-    document.getElementById('topbarUserDot').style.background = currentUser.color;
     const membersEl = document.getElementById('topbarMembers');
-    membersEl.innerHTML = roomMembers.map(m =>
-        '<div class="member-dot" style="background:' + m.color + ';" title="' + escHtml(m.display_name || m.username) + '">' +
-        escHtml((m.display_name || m.username).charAt(0).toUpperCase()) + '</div>'
-    ).join('');
+    const onlineIds = new Set(_roomOnlineUsers.map(u => u.user_id));
+    membersEl.innerHTML = roomMembers.map(m => {
+        const mId = m.user_id || m.id;
+        const isOnline = onlineIds.has(mId);
+        const cls = isOnline ? 'member-dot' : 'member-dot offline';
+        const ring = isOnline ? '<div class="online-ring"></div>' : '';
+        return '<div class="' + cls + '" style="background:' + m.color + ';" title="' + escHtml(m.display_name || m.username) + (isOnline ? ' (online)' : '') + '">' +
+            escHtml((m.display_name || m.username).charAt(0).toUpperCase()) + ring + '</div>';
+    }).join('');
     if (roomMembers.length > 0) {
         document.getElementById('userLegend').style.display = 'block';
         document.getElementById('userLegendItems').innerHTML = roomMembers.map(m =>
@@ -679,9 +704,9 @@ function buildTrainParamUI() {
         let html = '<div class="param-group">';
         html += '<div class="param-group-header" onclick="toggleParamGroup(this)">';
         html += '<span>' + group.label + ' (' + group.keys.length + ')</span>';
-        html += '<span class="chevron ' + (isCore ? 'open' : '') + '">▶</span>';
+        html += '<span class="chevron open">▶</span>';
         html += '</div>';
-        html += '<div class="param-group-body ' + (isCore ? 'open' : '') + '">';
+        html += '<div class="param-group-body open">';
 
         for (const key of group.keys) {
             const schema = trainParamsSchema[key];
@@ -978,7 +1003,8 @@ function updateChatMembersList() {
         const isOnline = onlineIds.has(mId);
         const name = m.display_name || m.username;
         html += '<div class="chat-member-item" onclick="openDmChat(' + mId + ', \'' + escHtml(name).replace(/'/g, "\\'") + '\')">';
-        html += '<div class="member-color" style="background:' + (m.color || '#888') + ';"></div>';
+        const ringStyle = isOnline ? 'border:2px solid #4caf50;' : '';
+        html += '<div class="member-color" style="background:' + (m.color || '#888') + ';' + ringStyle + '"></div>';
         html += '<span>' + escHtml(name) + '</span>';
         if (isOnline) html += '<div class="online-indicator"></div>';
         html += '</div>';
@@ -1138,18 +1164,18 @@ function updateSplitPreview() {
 }
 
 async function executeSplit() {
-    const train = parseInt(document.getElementById('splitTrainSlider').value) / 100;
-    const val = parseInt(document.getElementById('splitValSlider').value) / 100;
-    const test = Math.max(0, 1 - train - val);
-    const res = await fetch('/api/export', {
+    const train = parseInt(document.getElementById('splitTrainSlider').value);
+    const val = parseInt(document.getElementById('splitValSlider').value);
+    const test = Math.max(0, 100 - train - val);
+    const res = await fetch('/api/dataset/split', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ train_ratio: train, val_ratio: val, test_ratio: test }),
+        body: JSON.stringify({ train: train, val: val }),
     });
     const data = await res.json();
     if (data.error) { showToast(data.error, true); return; }
     closeModal('splitModal');
-    showToast('Exported: ' + (data.train_count || 0) + ' train, ' + (data.valid_count || 0) + ' val' + (data.test_count ? ', ' + data.test_count + ' test' : ''));
+    showToast('Split complete: ' + data.train_count + ' train, ' + data.val_count + ' val' + (data.test_count ? ', ' + data.test_count + ' test' : '') + ' → ' + escHtml(data.export_dir));
 }
 
 // =============================================================================
@@ -1347,6 +1373,420 @@ function updateTrainingChartVal(data) {
 }
 
 // =============================================================================
+// Model Validation, Export, Benchmark
+// =============================================================================
+
+let _benchPollTimer = null;
+let _benchJobId = null;
+let _exportPollTimer = null;
+let _exportJobId = null;
+let _valPollTimer = null;
+let _valJobId = null;
+
+async function loadModelSelectOptions(selectId) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const existing = sel.value;
+    try {
+        const res = await fetch('/api/inference/models');
+        const data = await res.json();
+        sel.innerHTML = '<option value="">Select model...</option>';
+        (data.models || []).forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.path;
+            opt.textContent = m.name + ' (' + m.size_mb + ' MB)';
+            sel.appendChild(opt);
+        });
+        if (existing) sel.value = existing;
+    } catch(e) {}
+}
+
+// --- Validation ---
+async function openValidateModal() {
+    openModal('validateModal');
+    await loadModelSelectOptions('valModelSelect');
+    document.getElementById('valResultsSection').style.display = 'none';
+    document.getElementById('valProgress').style.display = 'none';
+    document.getElementById('valStartBtn').disabled = false;
+}
+
+async function startValidation() {
+    const model = document.getElementById('valModelSelect').value;
+    if (!model) { showToast('Select a model', true); return; }
+
+    const btn = document.getElementById('valStartBtn');
+    btn.disabled = true;
+    document.getElementById('valProgress').style.display = 'block';
+    document.getElementById('valResultsSection').style.display = 'none';
+
+    try {
+        const res = await fetch('/api/model/validate', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                model_path: model,
+                data_yaml: document.getElementById('valDataYaml').value.trim(),
+                imgsz: parseInt(document.getElementById('valImgsz').value) || 640,
+                conf: parseFloat(document.getElementById('valConf').value) || 0.001,
+                iou: parseFloat(document.getElementById('valIou').value) || 0.6,
+                split: document.getElementById('valSplit').value,
+            }),
+        });
+        const data = await res.json();
+        if (data.error) { showToast(data.error, true); btn.disabled = false; document.getElementById('valProgress').style.display = 'none'; return; }
+
+        _valJobId = data.job_id;
+        if (_valPollTimer) clearInterval(_valPollTimer);
+        _valPollTimer = setInterval(() => _pollValJob(), 2000);
+    } catch(e) {
+        btn.disabled = false;
+        document.getElementById('valProgress').style.display = 'none';
+        showToast('Validation request failed', true);
+    }
+}
+
+async function _pollValJob() {
+    if (!_valJobId) { clearInterval(_valPollTimer); return; }
+    try {
+        const jr = await fetch('/api/model/job/' + _valJobId);
+        const job = await jr.json();
+        if (job.status === 'completed') {
+            clearInterval(_valPollTimer);
+            _valPollTimer = null;
+            _valJobId = null;
+            const btn = document.getElementById('valStartBtn');
+            if (btn) btn.disabled = false;
+            const prog = document.getElementById('valProgress');
+            if (prog) prog.style.display = 'none';
+            displayValResults(job.result);
+            showToast('Validation complete!');
+            showDesktopNotif('Validation Complete', 'mAP50: ' + ((job.result?.mAP50 || 0) * 100).toFixed(1) + '%');
+        } else if (job.status === 'error') {
+            clearInterval(_valPollTimer);
+            _valPollTimer = null;
+            _valJobId = null;
+            const btn = document.getElementById('valStartBtn');
+            if (btn) btn.disabled = false;
+            const prog = document.getElementById('valProgress');
+            if (prog) prog.style.display = 'none';
+            showToast('Validation error: ' + (job.error || 'unknown'), true);
+        }
+    } catch(e) {}
+}
+
+function displayValResults(metrics) {
+    const section = document.getElementById('valResultsSection');
+    section.style.display = 'block';
+
+    // Metric cards
+    const cards = document.getElementById('valMetricsCards');
+    const cardData = [
+        { label: 'mAP50', value: metrics.mAP50, color: '#4caf50' },
+        { label: 'mAP50-95', value: metrics.mAP50_95, color: '#2196f3' },
+        { label: 'Precision', value: metrics.precision, color: '#ff9800' },
+        { label: 'Recall', value: metrics.recall, color: '#e94560' },
+    ];
+    cards.innerHTML = cardData.map(c => `
+        <div style="background:#16213e; border-radius:6px; padding:8px 10px; text-align:center;">
+            <div style="font-size:20px; font-weight:bold; color:${c.color};">${c.value != null ? (c.value * 100).toFixed(1) + '%' : 'N/A'}</div>
+            <div style="font-size:10px; color:#888; margin-top:2px;">${c.label}</div>
+        </div>
+    `).join('');
+
+    // Per-class table
+    const tableDiv = document.getElementById('valPerClassTable');
+    if (metrics.per_class && metrics.per_class.length) {
+        let html = '<table style="width:100%; font-size:11px; border-collapse:collapse;">';
+        html += '<thead><tr style="color:#888; border-bottom:1px solid #0f3460;"><th style="text-align:left; padding:4px;">Class</th><th>Prec</th><th>Recall</th><th>AP50</th><th>AP</th></tr></thead><tbody>';
+        metrics.per_class.forEach(c => {
+            html += `<tr style="border-bottom:1px solid #0a0f1e;">
+                <td style="padding:3px 4px; color:#e0e0e0;">${escHtml(c.class_name)}</td>
+                <td style="text-align:center; color:#ff9800;">${c.precision != null ? (c.precision*100).toFixed(1) : '-'}%</td>
+                <td style="text-align:center; color:#e94560;">${c.recall != null ? (c.recall*100).toFixed(1) : '-'}%</td>
+                <td style="text-align:center; color:#4caf50;">${c.ap50 != null ? (c.ap50*100).toFixed(1) : '-'}%</td>
+                <td style="text-align:center; color:#2196f3;">${c.ap != null ? (c.ap*100).toFixed(1) : '-'}%</td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        tableDiv.innerHTML = html;
+    } else {
+        tableDiv.innerHTML = '';
+    }
+
+    // Plots
+    const plotsDiv = document.getElementById('valPlots');
+    if (metrics.plots && Object.keys(metrics.plots).length) {
+        plotsDiv.innerHTML = Object.entries(metrics.plots).map(([name, path]) =>
+            `<div style="cursor:pointer;" onclick="window.open('/api/model/plot?path=${encodeURIComponent(path)}', '_blank')">
+                <img src="/api/model/plot?path=${encodeURIComponent(path)}" style="width:100%; border-radius:4px; border:1px solid #0f3460;" alt="${escHtml(name)}">
+                <div style="font-size:10px; color:#888; text-align:center; margin-top:2px;">${escHtml(name.replace(/_/g, ' '))}</div>
+            </div>`
+        ).join('');
+    } else {
+        plotsDiv.innerHTML = '<div style="color:#666; font-size:12px;">No plots generated.</div>';
+    }
+}
+
+// --- Model Export ---
+const EXPORT_FORMATS = {
+    onnx: { label: 'ONNX', ext: '.onnx', desc: 'Open Neural Network Exchange' },
+    torchscript: { label: 'TorchScript', ext: '.torchscript', desc: 'PyTorch TorchScript' },
+    openvino: { label: 'OpenVINO', ext: '_openvino_model/', desc: 'Intel OpenVINO IR' },
+    engine: { label: 'TensorRT', ext: '.engine', desc: 'NVIDIA TensorRT (requires GPU)' },
+    coreml: { label: 'CoreML', ext: '.mlpackage', desc: 'Apple CoreML' },
+    saved_model: { label: 'TF SavedModel', ext: '_saved_model/', desc: 'TensorFlow SavedModel' },
+    tflite: { label: 'TFLite', ext: '.tflite', desc: 'TensorFlow Lite' },
+    pb: { label: 'TF GraphDef', ext: '.pb', desc: 'TensorFlow GraphDef' },
+    edgetpu: { label: 'Edge TPU', ext: '_edgetpu.tflite', desc: 'Google Edge TPU' },
+    tfjs: { label: 'TF.js', ext: '_web_model/', desc: 'TensorFlow.js for browser/Node.js' },
+    paddle: { label: 'PaddlePaddle', ext: '_paddle_model/', desc: 'Baidu PaddlePaddle' },
+    mnn: { label: 'MNN', ext: '.mnn', desc: 'Alibaba MNN mobile framework' },
+    ncnn: { label: 'NCNN', ext: '_ncnn_model/', desc: 'Tencent NCNN' },
+    imx: { label: 'IMX500', ext: '_imx_model/', desc: 'Sony IMX500 sensor' },
+    rknn: { label: 'RKNN', ext: '_rknn_model/', desc: 'Rockchip RKNN NPU' },
+    executorch: { label: 'ExecuTorch', ext: '_executorch_model/', desc: 'Meta ExecuTorch mobile' },
+    axelera: { label: 'Axelera', ext: '_axelera_model/', desc: 'Axelera AI accelerator' },
+};
+
+const EXPORT_OPT_SUPPORT = {
+    half:     ['torchscript','onnx','openvino','engine','coreml','tflite','tfjs','mnn','ncnn'],
+    dynamic:  ['torchscript','onnx','openvino','engine','coreml'],
+    simplify: ['onnx','engine'],
+};
+
+function updateExportOptions(format) {
+    const desc = EXPORT_FORMATS[format];
+    document.getElementById('exportFormatDesc').textContent = desc ? desc.desc : '';
+    document.getElementById('exportHalfWrap').style.display     = EXPORT_OPT_SUPPORT.half.includes(format) ? '' : 'none';
+    document.getElementById('exportDynamicWrap').style.display   = EXPORT_OPT_SUPPORT.dynamic.includes(format) ? '' : 'none';
+    document.getElementById('exportSimplifyWrap').style.display  = EXPORT_OPT_SUPPORT.simplify.includes(format) ? '' : 'none';
+    // Uncheck hidden options so they aren't sent
+    if (!EXPORT_OPT_SUPPORT.half.includes(format))     document.getElementById('exportHalf').checked = false;
+    if (!EXPORT_OPT_SUPPORT.dynamic.includes(format))   document.getElementById('exportDynamic').checked = false;
+    if (!EXPORT_OPT_SUPPORT.simplify.includes(format))  document.getElementById('exportSimplify').checked = false;
+}
+
+async function openModelExportModal() {
+    openModal('modelExportModal');
+    loadModelSelectOptions('exportModelSelect');
+    document.getElementById('exportResultSection').style.display = 'none';
+    document.getElementById('exportProgress').style.display = 'none';
+    document.getElementById('exportStartBtn').disabled = false;
+
+    const sel = document.getElementById('modelExportFmtSelect');
+    sel.onchange = () => updateExportOptions(sel.value);
+    updateExportOptions(sel.value);
+}
+
+async function startModelExport() {
+    const model = document.getElementById('exportModelSelect').value;
+    const fmt = document.getElementById('modelExportFmtSelect').value;
+    if (!model) { showToast('Select a model', true); return; }
+    if (!fmt) { showToast('Select an export format', true); return; }
+
+    const btn = document.getElementById('exportStartBtn');
+    btn.disabled = true;
+    document.getElementById('exportProgress').style.display = 'block';
+    document.getElementById('exportResultSection').style.display = 'none';
+
+    try {
+        const res = await fetch('/api/model/export', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                model_path: model,
+                format: fmt,
+                imgsz: parseInt(document.getElementById('exportImgsz').value) || 640,
+                batch: parseInt(document.getElementById('exportBatch').value) || 1,
+                half: document.getElementById('exportHalf').checked,
+                dynamic: document.getElementById('exportDynamic').checked,
+                simplify: document.getElementById('exportSimplify').checked,
+            }),
+        });
+        const data = await res.json();
+        if (data.error) { showToast(data.error, true); btn.disabled = false; document.getElementById('exportProgress').style.display = 'none'; return; }
+
+        _exportJobId = data.job_id;
+        if (_exportPollTimer) clearInterval(_exportPollTimer);
+        _exportPollTimer = setInterval(() => _pollExportJob(), 2000);
+    } catch(e) {
+        btn.disabled = false;
+        document.getElementById('exportProgress').style.display = 'none';
+        showToast('Export request failed', true);
+    }
+}
+
+async function _pollExportJob() {
+    if (!_exportJobId) { clearInterval(_exportPollTimer); return; }
+    try {
+        const jr = await fetch('/api/model/job/' + _exportJobId);
+        const job = await jr.json();
+        if (job.status === 'completed') {
+            clearInterval(_exportPollTimer);
+            _exportJobId = null;
+            const btn = document.getElementById('exportStartBtn');
+            if (btn) btn.disabled = false;
+            const prog = document.getElementById('exportProgress');
+            if (prog) prog.style.display = 'none';
+            const r = job.result;
+            const sec = document.getElementById('exportResultSection');
+            if (sec) {
+                sec.style.display = 'block';
+                document.getElementById('exportResultContent').innerHTML = `
+                    <div style="font-size:13px; color:#4caf50; font-weight:bold; margin-bottom:6px;">✅ Export Complete</div>
+                    <div style="font-size:12px; color:#ccc;">
+                        <div>Format: <strong>${escHtml(r.format_label)}</strong></div>
+                        <div>Path: <code style="font-size:11px; color:#4fc3f7;">${escHtml(r.exported_path)}</code></div>
+                        <div>Size: <strong>${r.size_mb} MB</strong></div>
+                        <div>Time: ${r.elapsed_seconds}s</div>
+                    </div>
+                `;
+            }
+            showToast('Model exported: ' + r.format_label);
+            showDesktopNotif('Export Complete', r.format_label + ' — ' + r.size_mb + ' MB');
+        } else if (job.status === 'error') {
+            clearInterval(_exportPollTimer);
+            _exportJobId = null;
+            const btn = document.getElementById('exportStartBtn');
+            if (btn) btn.disabled = false;
+            const prog = document.getElementById('exportProgress');
+            if (prog) prog.style.display = 'none';
+            showToast('Export error: ' + (job.error || 'unknown'), true);
+        }
+    } catch(e) {}
+}
+
+// --- Benchmark ---
+async function openBenchmarkModal() {
+    openModal('benchmarkModal');
+    loadModelSelectOptions('benchModelSelect');
+    document.getElementById('benchResultsSection').style.display = 'none';
+    document.getElementById('benchProgress').style.display = 'none';
+    const btn = document.getElementById('benchStartBtn');
+    // If a benchmark is already running, show stop button
+    if (_benchJobId) {
+        btn.textContent = '🛑 Stop Benchmark';
+        btn.onclick = stopBenchmark;
+        document.getElementById('benchProgress').style.display = 'block';
+    } else {
+        btn.textContent = '⚡ Run Benchmark';
+        btn.onclick = startBenchmark;
+        btn.disabled = false;
+    }
+}
+
+async function startBenchmark() {
+    const model = document.getElementById('benchModelSelect').value;
+    if (!model) { showToast('Select a model', true); return; }
+
+    const btn = document.getElementById('benchStartBtn');
+    btn.textContent = '🛑 Stop Benchmark';
+    btn.onclick = stopBenchmark;
+    document.getElementById('benchProgress').style.display = 'block';
+    document.getElementById('benchResultsSection').style.display = 'none';
+
+    try {
+        const res = await fetch('/api/model/benchmark', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                model_path: model,
+                data_yaml: document.getElementById('benchDataYaml').value.trim(),
+                imgsz: parseInt(document.getElementById('benchImgsz').value) || 640,
+                device: document.getElementById('benchDevice').value,
+                half: document.getElementById('benchHalf').value === 'true',
+            }),
+        });
+        const data = await res.json();
+        if (data.error) {
+            showToast(data.error, true);
+            btn.textContent = '⚡ Run Benchmark';
+            btn.onclick = startBenchmark;
+            document.getElementById('benchProgress').style.display = 'none';
+            return;
+        }
+
+        _benchJobId = data.job_id;
+        showToast('Benchmark started — you can close this modal, it will continue in background');
+        if (_benchPollTimer) clearInterval(_benchPollTimer);
+        _benchPollTimer = setInterval(() => _pollBenchJob(), 3000);
+    } catch(e) {
+        btn.textContent = '⚡ Run Benchmark';
+        btn.onclick = startBenchmark;
+        document.getElementById('benchProgress').style.display = 'none';
+        showToast('Benchmark request failed', true);
+    }
+}
+
+function stopBenchmark() {
+    if (_benchPollTimer) { clearInterval(_benchPollTimer); _benchPollTimer = null; }
+    _benchJobId = null;
+    const btn = document.getElementById('benchStartBtn');
+    if (btn) {
+        btn.textContent = '⚡ Run Benchmark';
+        btn.onclick = startBenchmark;
+    }
+    const prog = document.getElementById('benchProgress');
+    if (prog) prog.style.display = 'none';
+    showToast('Benchmark polling stopped (server-side process may still run)');
+}
+
+async function _pollBenchJob() {
+    if (!_benchJobId) { clearInterval(_benchPollTimer); return; }
+    try {
+        const jr = await fetch('/api/model/job/' + _benchJobId);
+        const job = await jr.json();
+        if (job.status === 'completed') {
+            clearInterval(_benchPollTimer);
+            _benchPollTimer = null;
+            _benchJobId = null;
+            // Update UI if modal is open
+            const btn = document.getElementById('benchStartBtn');
+            if (btn) { btn.textContent = '⚡ Run Benchmark'; btn.onclick = startBenchmark; }
+            const prog = document.getElementById('benchProgress');
+            if (prog) prog.style.display = 'none';
+            displayBenchResults(job.result);
+            showToast('Benchmark complete!');
+            showDesktopNotif('Benchmark Complete', (job.result?.benchmarks?.length || 0) + ' formats tested');
+        } else if (job.status === 'error') {
+            clearInterval(_benchPollTimer);
+            _benchPollTimer = null;
+            _benchJobId = null;
+            const btn = document.getElementById('benchStartBtn');
+            if (btn) { btn.textContent = '⚡ Run Benchmark'; btn.onclick = startBenchmark; }
+            const prog = document.getElementById('benchProgress');
+            if (prog) prog.style.display = 'none';
+            showToast('Benchmark error: ' + (job.error || 'unknown'), true);
+        }
+    } catch(e) {}
+}
+
+function displayBenchResults(result) {
+    const section = document.getElementById('benchResultsSection');
+    section.style.display = 'block';
+    const table = document.getElementById('benchResultsTable');
+
+    if (!result.benchmarks || !result.benchmarks.length) {
+        table.innerHTML = '<div style="color:#888; font-size:12px;">No benchmark data available.</div>';
+        return;
+    }
+
+    const cols = Object.keys(result.benchmarks[0]);
+    let html = '<table style="width:100%; font-size:11px; border-collapse:collapse;">';
+    html += '<thead><tr style="color:#888; border-bottom:1px solid #0f3460;">';
+    cols.forEach(c => { html += '<th style="padding:4px 6px; text-align:left;">' + escHtml(String(c)) + '</th>'; });
+    html += '</tr></thead><tbody>';
+    result.benchmarks.forEach(row => {
+        html += '<tr style="border-bottom:1px solid #0a0f1e;">';
+        cols.forEach(c => {
+            let val = row[c];
+            if (typeof val === 'number') val = val.toFixed(2);
+            html += '<td style="padding:3px 6px; color:#e0e0e0;">' + escHtml(String(val != null ? val : '-')) + '</td>';
+        });
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    table.innerHTML = html;
+}
+
+// =============================================================================
 // Batch Operations
 // =============================================================================
 let batchMode = false;
@@ -1357,17 +1797,14 @@ function toggleBatchMode() {
     batchMode = !batchMode;
     batchSelected.clear();
     document.querySelector('.sidebar').classList.toggle('batch-mode', batchMode);
-    document.getElementById('batchToolbar').classList.toggle('show', batchMode);
     updateBatchCount();
     renderImageList();
 }
 
-function toggleBatchImage(name, event) {
-    if (event) event.stopPropagation();
+function toggleBatchImage(name) {
     if (batchSelected.has(name)) batchSelected.delete(name);
     else batchSelected.add(name);
     updateBatchCount();
-    renderImageList();
 }
 
 function batchSelectAll() {
@@ -1547,10 +1984,14 @@ function updateAssigneeBadge() {
     const badge = document.getElementById('assigneeBadge');
     if (currentImageName && _assignments[currentImageName]) {
         const a = _assignments[currentImageName];
-        badge.textContent = '→ ' + (a.display_name || a.username);
-        badge.style.color = a.color || '#888';
+        const color = a.color || '#888';
+        badge.style.display = 'flex';
+        badge.innerHTML = '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:' + color + '22;border:1px solid ' + color + '44;font-size:10px;color:' + color + ';">' +
+            '<span style="width:6px;height:6px;border-radius:50%;background:' + color + ';"></span>' +
+            escHtml(a.display_name || a.username) + '</span>';
     } else {
-        badge.textContent = '';
+        badge.style.display = 'none';
+        badge.innerHTML = '';
     }
 }
 
@@ -1632,6 +2073,8 @@ async function runInference() {
         _inferenceDetections = data.detections || [];
         _modelNames = data.model_names || {};
         showToast('Found ' + data.count + ' detections');
+        document.getElementById('infClearBtn').style.display = data.count > 0 ? '' : 'none';
+        document.getElementById('infAcceptBtn').style.display = data.count > 0 ? '' : 'none';
         draw();
     } catch(e) {
         showToast('Inference failed', true);
@@ -1640,6 +2083,8 @@ async function runInference() {
 
 function clearInference() {
     _inferenceDetections = [];
+    document.getElementById('infClearBtn').style.display = 'none';
+    document.getElementById('infAcceptBtn').style.display = 'none';
     draw();
 }
 
@@ -1673,15 +2118,26 @@ function acceptInference() {
     }
     const count = _inferenceDetections.length;
     for (const det of _inferenceDetections) {
-        currentLabels.push({
-            type: 'bbox',
-            class_id: classMap[det.class_id] !== undefined ? classMap[det.class_id] : det.class_id,
-            cx: det.cx, cy: det.cy,
-            w: det.w, h: det.h,
-        });
+        const mappedClassId = classMap[det.class_id] !== undefined ? classMap[det.class_id] : det.class_id;
+        if (det.type === 'polygon' && det.points) {
+            currentLabels.push({
+                type: 'polygon',
+                class_id: mappedClassId,
+                points: det.points.map(p => ({x: p[0], y: p[1]})),
+            });
+        } else {
+            currentLabels.push({
+                type: 'bbox',
+                class_id: mappedClassId,
+                cx: det.cx, cy: det.cy,
+                w: det.w, h: det.h,
+            });
+        }
     }
     hasUnsavedChanges = true;
     _inferenceDetections = [];
+    document.getElementById('infClearBtn').style.display = 'none';
+    document.getElementById('infAcceptBtn').style.display = 'none';
     renderBboxList();
     draw();
     showToast('Accepted ' + count + ' detections as labels');
@@ -1691,36 +2147,69 @@ function drawInferenceOverlays() {
     if (!_inferenceDetections.length || !imgLoaded) return;
     const classSelect = document.getElementById('classSelect');
     for (const det of _inferenceDetections) {
-        const x = offsetX + (det.cx - det.w / 2) * imgW * scale;
-        const y = offsetY + (det.cy - det.h / 2) * imgH * scale;
-        const w = det.w * imgW * scale;
-        const h = det.h * imgH * scale;
+        const className = det.class_name || _modelNames[String(det.class_id)] || classSelect.options[det.class_id]?.textContent || ('cls' + det.class_id);
+        const label = className + ' ' + (det.confidence * 100).toFixed(0) + '%';
         ctx.setLineDash([4, 4]);
         ctx.strokeStyle = 'rgba(0,255,136,0.7)';
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, w, h);
-        ctx.setLineDash([]);
-        const className = det.class_name || _modelNames[String(det.class_id)] || classSelect.options[det.class_id]?.textContent || ('cls' + det.class_id);
-        const label = className + ' ' + (det.confidence * 100).toFixed(0) + '%';
-        ctx.font = '10px sans-serif';
-        const tw = ctx.measureText(label).width;
-        ctx.fillStyle = 'rgba(0,255,136,0.8)';
-        ctx.fillRect(x, y - 14, tw + 6, 14);
-        ctx.fillStyle = '#000';
-        ctx.fillText(label, x + 3, y - 3);
+
+        if (det.type === 'polygon' && det.points) {
+            // Draw polygon overlay
+            ctx.beginPath();
+            for (let i = 0; i < det.points.length; i++) {
+                const px = offsetX + det.points[i][0] * imgW * scale;
+                const py = offsetY + det.points[i][1] * imgH * scale;
+                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(0,255,136,0.1)';
+            ctx.fill();
+            // Label at first point
+            const lx = offsetX + det.points[0][0] * imgW * scale;
+            const ly = offsetY + det.points[0][1] * imgH * scale;
+            ctx.setLineDash([]);
+            ctx.font = '10px sans-serif';
+            const tw = ctx.measureText(label).width;
+            ctx.fillStyle = 'rgba(0,255,136,0.8)';
+            ctx.fillRect(lx, ly - 14, tw + 6, 14);
+            ctx.fillStyle = '#000';
+            ctx.fillText(label, lx + 3, ly - 3);
+        } else {
+            // Draw bbox overlay
+            const x = offsetX + (det.cx - det.w / 2) * imgW * scale;
+            const y = offsetY + (det.cy - det.h / 2) * imgH * scale;
+            const w = det.w * imgW * scale;
+            const h = det.h * imgH * scale;
+            ctx.strokeRect(x, y, w, h);
+            ctx.setLineDash([]);
+            ctx.font = '10px sans-serif';
+            const tw = ctx.measureText(label).width;
+            ctx.fillStyle = 'rgba(0,255,136,0.8)';
+            ctx.fillRect(x, y - 14, tw + 6, 14);
+            ctx.fillStyle = '#000';
+            ctx.fillText(label, x + 3, y - 3);
+        }
     }
 }
 
 // =============================================================================
 // Auto-Annotate (Apply Predictions — Active Learning Loop)
 // =============================================================================
+function switchAATab(tabId) {
+    document.querySelectorAll('.aa-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('.aa-tab[data-tab="' + tabId + '"]').classList.add('active');
+    document.querySelectorAll('.aa-tab-content').forEach(c => c.style.display = 'none');
+    document.getElementById(tabId).style.display = 'block';
+}
+
 async function openAutoAnnotate() {
     openModal('autoAnnotateModal');
+    switchAATab('aa-main');
     const sel = document.getElementById('autoAnnotateModel');
     sel.innerHTML = '<option value="">Loading models...</option>';
-    // Reset class section
-    document.getElementById('autoAnnotateClassesSection').style.display = 'none';
-    document.getElementById('autoAnnotateClassesList').innerHTML = '';
+    document.getElementById('autoAnnotateClassesList').innerHTML = '<div style="color:#888; font-size:12px;">Select a model first</div>';
+    document.getElementById('aaClassBadge').textContent = '';
     try {
         const res = await fetch('/api/inference/models');
         const data = await res.json();
@@ -1735,7 +2224,16 @@ async function openAutoAnnotate() {
     document.getElementById('autoAnnotateBtn').disabled = false;
 }
 
+let _modelBrowserTarget = 'autoAnnotateModel';
+
 function openModelBrowser(browsePath) {
+    _modelBrowserTarget = 'autoAnnotateModel';
+    openModal('browseModelModal');
+    browseForModel(browsePath);
+}
+
+function openModelBrowserForInference(browsePath) {
+    _modelBrowserTarget = 'inferenceModelSelect';
     openModal('browseModelModal');
     browseForModel(browsePath);
 }
@@ -1793,7 +2291,7 @@ async function browseForModel(browsePath) {
 }
 
 function selectBrowsedModel(modelPath, modelName) {
-    const sel = document.getElementById('autoAnnotateModel');
+    const sel = document.getElementById(_modelBrowserTarget);
     let found = false;
     for (let i = 0; i < sel.options.length; i++) {
         if (sel.options[i].value === modelPath) { sel.selectedIndex = i; found = true; break; }
@@ -1806,22 +2304,21 @@ function selectBrowsedModel(modelPath, modelName) {
         sel.value = modelPath;
     }
     closeModal('browseModelModal');
-    onAutoAnnotateModelChange();
+    if (_modelBrowserTarget === 'autoAnnotateModel') onAutoAnnotateModelChange();
 }
 
 async function onAutoAnnotateModelChange() {
     const modelPath = document.getElementById('autoAnnotateModel').value;
-    const section = document.getElementById('autoAnnotateClassesSection');
     const listDiv = document.getElementById('autoAnnotateClassesList');
     const countDiv = document.getElementById('autoAnnotateClassCount');
+    const badge = document.getElementById('aaClassBadge');
 
     if (!modelPath) {
-        section.style.display = 'none';
-        listDiv.innerHTML = '';
+        listDiv.innerHTML = '<div style="color:#888; font-size:12px;">Select a model first</div>';
+        badge.textContent = '';
         return;
     }
 
-    section.style.display = 'block';
     listDiv.innerHTML = '<div style="color:#888; font-size:12px;">Loading classes...</div>';
     countDiv.textContent = '';
 
@@ -1834,6 +2331,7 @@ async function onAutoAnnotateModelChange() {
         const data = await res.json();
         if (!data.ok || !data.classes || data.classes.length === 0) {
             listDiv.innerHTML = '<div style="color:#888; font-size:12px;">No classes found in model</div>';
+            badge.textContent = '';
             return;
         }
         let html = '';
@@ -1845,6 +2343,7 @@ async function onAutoAnnotateModelChange() {
         });
         listDiv.innerHTML = html;
         document.getElementById('autoAnnotateSelectAll').checked = true;
+        badge.textContent = '(' + data.classes.length + ')';
         _updateAutoAnnotateClassCount();
 
         // Listen for individual checkbox changes
@@ -1890,6 +2389,9 @@ async function startAutoAnnotate() {
     }
 
     const confidence = parseInt(document.getElementById('autoAnnotateConf').value) / 100;
+    const iou = parseInt(document.getElementById('autoAnnotateIou').value) / 100;
+    const imgsz = parseInt(document.getElementById('autoAnnotateImgsz').value);
+    const maxDet = parseInt(document.getElementById('autoAnnotateMaxDet').value);
     const mode = document.getElementById('autoAnnotateMode').value;
     const overwrite = document.getElementById('autoAnnotateOverwrite').checked;
 
@@ -1908,6 +2410,9 @@ async function startAutoAnnotate() {
         const body = {
             model_path: modelPath,
             confidence: confidence,
+            iou: iou,
+            imgsz: imgsz,
+            max_det: maxDet,
             mode: mode,
             overwrite: overwrite,
             image_names: imageNames,
@@ -1986,7 +2491,9 @@ function renderImageList() {
         let cls = 'image-item' + (isSelected ? ' active' : '');
         let style = '';
         if (editor && !isSelected) style = 'border-left:3px solid ' + (editor.color || '#888') + '; background:' + (editor.color || '#888') + '15;';
-        let html = '<div class="' + cls + '" style="' + style + '" onclick="' + (batchMode ? 'toggleBatchImage(\'' + escHtml(imgItem.name) + '\', event)' : 'selectImage(' + idx + ')') + '" title="' + escHtml(imgItem.name) + (editor ? ' | Last edit: ' + escHtml(editor.display_name || editor.username || '') : '') + '">';
+        let html = '<div class="' + cls + '" style="' + style + '" onclick="selectImage(' + idx + ')" title="' + escHtml(imgItem.name) + (editor ? ' | Last edit: ' + escHtml(editor.display_name || editor.username || '') : '') + '">';
+        const batchChecked = batchSelected.has(imgItem.name) ? ' checked' : '';
+        html += '<input type="checkbox" class="batch-check" onclick="event.stopPropagation();toggleBatchImage(\'' + escHtml(imgItem.name) + '\')"' + batchChecked + '>';
         html += '<span class="item-number">' + globalNum + '</span>';
         if (assign) html += '<span style="width:6px;height:6px;border-radius:50%;background:' + (assign.color || '#888') + ';flex-shrink:0;" title="Assigned: ' + escHtml(assign.display_name || '') + '"></span>';
         html += '<span class="dot ' + dotClass + '"></span>';
@@ -2875,7 +3382,7 @@ function onKeyDown(e) {
     if (e.key === 'c') { toggleChat(); e.preventDefault(); }
     if (e.key === 'i') { openDashboard(); e.preventDefault(); }
     if (e.key === 'e') { openSaveExportModal(); e.preventDefault(); }
-    if (e.key === 'p') { document.getElementById('inferenceToolbar').classList.toggle('show'); e.preventDefault(); }
+    if (e.key === 'p') { e.preventDefault(); } // reserved
     if (e.key === 'q') { openQualityMetrics(); e.preventDefault(); }
     if (e.key === 'm') { toggleBatchMode(); e.preventDefault(); }
     if (e.key >= '1' && e.key <= '9') {
@@ -2946,7 +3453,11 @@ function switchOpenMode(m) {
 async function loadCurrentDirs() {
     const res = await fetch('/api/current-dirs');
     const data = await res.json();
-    document.getElementById('dirDisplay').textContent = 'IMG: ' + data.images_dir + '\nLBL: ' + data.labels_dir;
+    const dd = document.getElementById('dirDisplay');
+    dd.innerHTML = '<div>📁 IMG: <span style="color:#4caf50;">' + escHtml(data.images_dir || 'Not set') + '</span></div>' +
+        '<div>🏷️ LBL: <span style="color:#2196f3;">' + escHtml(data.labels_dir || 'Not set') + '</span></div>';
+    const info = document.getElementById('currentPathsInfo');
+    if (info && data.images_dir) info.style.display = 'block';
     document.getElementById('imgDirInput').value = data.images_dir;
     document.getElementById('saveDirInput').value = data.export_dir;
 }

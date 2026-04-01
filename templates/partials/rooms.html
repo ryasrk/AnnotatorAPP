@@ -52,6 +52,9 @@
     <!-- Sticky Training Toolbar -->
     <div class="training-toolbar">
       <button class="btn-new-train" onclick="showNewTrainingForm()">➕ New Training</button>
+      <button class="btn-new-train" style="background:#1a237e;" onclick="openValidateModal()">📊 Validate</button>
+      <button class="btn-new-train" style="background:#1b5e20;" onclick="openModelExportModal()">📦 Export Model</button>
+      <button class="btn-new-train" style="background:#e65100;" onclick="openBenchmarkModal()">⚡ Benchmark</button>
       <div class="gpu-info" id="gpuInfoBar">
         <span>GPU:</span>
         <span id="gpuInfoText">Loading...</span>

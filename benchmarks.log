@@ -1,0 +1,50 @@
+
+Benchmarks complete for /home/training/training/annotation-app/models/yolo26n.pt on coco8.yaml at imgsz=640 (211.48s)
+Benchmarks legend:  - ✅ Success  - ❎ Export passed but validation failed  - ❌️ Export failed
++-----------------------------------------------------------------------------------------------------------+
+|      Format                  Status❔   Size (MB)   metrics/mAP50-95(B)   Inference time (ms/im)   FPS    |
++===========================================================================================================+
+| 1    PyTorch                 ✅         5.3         0.6599                273.9                    3.65   |
+| 2    TorchScript             ✅         5.2         0.6965                2.12                     471.86 |
+| 3    ONNX                    ✅         4.8         0.6966                2.39                     418.24 |
+| 4    OpenVINO                ❌         0.0         -                     -                        -      |
+| 5    TensorRT                ✅         8.1         0.6965                1.04                     959.4  |
+| 6    CoreML                  ❌         0.0         -                     -                        -      |
+| 7    TensorFlow SavedModel   ❌         0.0         -                     -                        -      |
+| 8    TensorFlow GraphDef     ❌         0.0         -                     -                        -      |
+| 9    TensorFlow Lite         ❌         0.0         -                     -                        -      |
+| 10   TensorFlow Edge TPU     ❌         0.0         -                     -                        -      |
+| 11   TensorFlow.js           ❌         0.0         -                     -                        -      |
+| 12   PaddlePaddle            ❌         0.0         -                     -                        -      |
+| 13   MNN                     ✅         4.7         0.6875                41.66                    24.0   |
+| 14   NCNN                    ❌         0.0         -                     -                        -      |
+| 15   IMX                     ❌         0.0         -                     -                        -      |
+| 16   RKNN                    ❌         0.0         -                     -                        -      |
+| 17   ExecuTorch              ❌         0.0         -                     -                        -      |
+| 18   Axelera AI              ❌         0.0         -                     -                        -      |
++-----------------------------------------------------------------------------------------------------------+
+
+Benchmarks complete for /home/training/training/annotation-app/models/yolo26n.pt on coco8.yaml at imgsz=640 (274.14s)
+Benchmarks legend:  - ✅ Success  - ❎ Export passed but validation failed  - ❌️ Export failed
++-----------------------------------------------------------------------------------------------------------+
+|      Format                  Status❔   Size (MB)   metrics/mAP50-95(B)   Inference time (ms/im)   FPS    |
++===========================================================================================================+
+| 1    PyTorch                 ✅         5.3         0.6599                273.74                   3.65   |
+| 2    TorchScript             ✅         5.1         0.6965                2.08                     480.97 |
+| 3    ONNX                    ✅         4.8         0.6966                2.34                     426.88 |
+| 4    OpenVINO                ❌         0.0         -                     -                        -      |
+| 5    TensorRT                ✅         8.1         0.6965                1.21                     824.01 |
+| 6    CoreML                  ❌         0.0         -                     -                        -      |
+| 7    TensorFlow SavedModel   ❌         0.0         -                     -                        -      |
+| 8    TensorFlow GraphDef     ❌         0.0         -                     -                        -      |
+| 9    TensorFlow Lite         ❌         0.0         -                     -                        -      |
+| 10   TensorFlow Edge TPU     ❌         0.0         -                     -                        -      |
+| 11   TensorFlow.js           ❌         0.0         -                     -                        -      |
+| 12   PaddlePaddle            ❌         0.0         -                     -                        -      |
+| 13   MNN                     ✅         4.7         0.6875                20.06                    49.84  |
+| 14   NCNN                    ✅         4.8         0.6717                28.3                     35.33  |
+| 15   IMX                     ❌         0.0         -                     -                        -      |
+| 16   RKNN                    ❌         0.0         -                     -                        -      |
+| 17   ExecuTorch              ❌         0.0         -                     -                        -      |
+| 18   Axelera AI              ❌         0.0         -                     -                        -      |
++-----------------------------------------------------------------------------------------------------------+

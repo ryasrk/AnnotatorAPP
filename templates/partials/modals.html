@@ -29,6 +29,9 @@
       </div>
       <div class="folder-browser" id="lblDirBrowser"></div>
     </div>
+    <div id="currentPathsInfo" style="margin-bottom:12px; padding:8px; background:#0e1628; border-radius:6px; font-size:11px; color:#888; display:none;">
+      <div id="dirDisplay">No folder loaded</div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal('openFolderModal')">Cancel</button>
       <button class="btn btn-primary" onclick="submitOpenFolder()">Open</button>
@@ -272,45 +275,69 @@
 
 <!-- Auto-Annotate (Apply Predictions) Modal -->
 <div class="modal-overlay" id="autoAnnotateModal">
-  <div class="modal" style="min-width:460px; max-width:560px;">
+  <div class="modal" style="min-width:460px; max-width:560px; max-height:85vh; overflow-y:auto;">
     <h2>🤖 Auto-Annotate</h2>
-    <p style="font-size:12px; color:#888; margin-bottom:12px;">Run model inference on images and save predictions as annotations. This is the active learning loop: Train → Predict → Review → Re-train.</p>
+    <p style="font-size:12px; color:#888; margin-bottom:8px;">Run model inference on images and save predictions as annotations.</p>
 
-    <label>Model</label>
-    <div style="display:flex; gap:6px; align-items:stretch;">
-      <select id="autoAnnotateModel" onchange="onAutoAnnotateModelChange()" style="flex:1; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
-        <option value="">Select model...</option>
-      </select>
-      <button class="btn" type="button" onclick="openModelBrowser()" style="font-size:12px; padding:6px 12px; white-space:nowrap;" title="Browse filesystem for .pt model files">📂 Browse</button>
+    <!-- Tab navigation -->
+    <div style="display:flex; border-bottom:2px solid #0f3460; margin-bottom:12px;">
+      <div class="aa-tab active" data-tab="aa-main" onclick="switchAATab('aa-main')">Model & Target</div>
+      <div class="aa-tab" data-tab="aa-settings" onclick="switchAATab('aa-settings')">⚙ Settings</div>
+      <div class="aa-tab" data-tab="aa-classes" onclick="switchAATab('aa-classes')">📋 Classes <span id="aaClassBadge" style="font-size:10px;color:#4fc3f7;"></span></div>
     </div>
 
-    <label style="margin-top:10px;">Confidence Threshold: <span id="autoAnnotateConfVal">25</span>%</label>
-    <input type="range" id="autoAnnotateConf" min="5" max="95" value="25" step="5" oninput="document.getElementById('autoAnnotateConfVal').textContent=this.value">
-
-    <!-- Step 2: Class selection -->
-    <div id="autoAnnotateClassesSection" style="display:none; margin-top:10px;">
-      <label style="display:flex; align-items:center; justify-content:space-between;">
-        <span>Model Classes</span>
-        <label style="font-size:12px; cursor:pointer; margin:0;">
-          <input type="checkbox" id="autoAnnotateSelectAll" checked onchange="toggleAllAutoAnnotateClasses(this.checked)"> Select All
-        </label>
-      </label>
-      <div id="autoAnnotateClassesList" style="max-height:180px; overflow-y:auto; border:1px solid #0f3460; border-radius:4px; padding:6px 8px; background:#16213e; margin-top:4px;">
-        <div style="color:#888; font-size:12px;">Loading classes...</div>
+    <!-- Tab 1: Model & Target -->
+    <div class="aa-tab-content" id="aa-main">
+      <label>Model</label>
+      <div style="display:flex; gap:6px; align-items:stretch;">
+        <select id="autoAnnotateModel" onchange="onAutoAnnotateModelChange()" style="flex:1; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+          <option value="">Select model...</option>
+        </select>
+        <button class="btn" type="button" onclick="openModelBrowser()" style="font-size:12px; padding:6px 12px; white-space:nowrap;" title="Browse filesystem for .pt model files">📂 Browse</button>
       </div>
-      <div style="font-size:11px; color:#888; margin-top:2px;" id="autoAnnotateClassCount"></div>
+
+      <label style="margin-top:10px;">Target Images</label>
+      <select id="autoAnnotateMode" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+        <option value="unannotated">Unannotated images only</option>
+        <option value="all">All images</option>
+        <option value="selected">Selected images (batch selection)</option>
+      </select>
+
+      <label style="margin-top:10px;">
+        <input type="checkbox" id="autoAnnotateOverwrite"> Overwrite existing annotations
+      </label>
     </div>
 
-    <label style="margin-top:10px;">Target Images</label>
-    <select id="autoAnnotateMode" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
-      <option value="unannotated">Unannotated images only</option>
-      <option value="all">All images</option>
-      <option value="selected">Selected images (batch selection)</option>
-    </select>
+    <!-- Tab 2: Settings -->
+    <div class="aa-tab-content" id="aa-settings" style="display:none;">
+      <label>Confidence Threshold: <span id="autoAnnotateConfVal">25</span>%</label>
+      <input type="range" id="autoAnnotateConf" min="5" max="95" value="25" step="5" oninput="document.getElementById('autoAnnotateConfVal').textContent=this.value">
 
-    <label style="margin-top:10px;">
-      <input type="checkbox" id="autoAnnotateOverwrite"> Overwrite existing annotations
-    </label>
+      <label style="margin-top:8px;">IoU Threshold: <span id="autoAnnotateIouVal">0.7</span></label>
+      <input type="range" id="autoAnnotateIou" min="10" max="95" value="70" step="5" oninput="document.getElementById('autoAnnotateIouVal').textContent=(this.value/100).toFixed(2)">
+
+      <label style="margin-top:8px;">Image Size: <span id="autoAnnotateImgszVal">640</span>px</label>
+      <input type="range" id="autoAnnotateImgsz" min="320" max="1280" value="640" step="32" oninput="document.getElementById('autoAnnotateImgszVal').textContent=this.value">
+
+      <label style="margin-top:8px;">Max Detections: <span id="autoAnnotateMaxDetVal">300</span></label>
+      <input type="range" id="autoAnnotateMaxDet" min="10" max="1000" value="300" step="10" oninput="document.getElementById('autoAnnotateMaxDetVal').textContent=this.value">
+    </div>
+
+    <!-- Tab 3: Classes -->
+    <div class="aa-tab-content" id="aa-classes" style="display:none;">
+      <div id="autoAnnotateClassesSection">
+        <label style="display:flex; align-items:center; justify-content:space-between;">
+          <span>Model Classes</span>
+          <label style="font-size:12px; cursor:pointer; margin:0;">
+            <input type="checkbox" id="autoAnnotateSelectAll" checked onchange="toggleAllAutoAnnotateClasses(this.checked)"> Select All
+          </label>
+        </label>
+        <div id="autoAnnotateClassesList" style="max-height:250px; overflow-y:auto; border:1px solid #0f3460; border-radius:4px; padding:6px 8px; background:#16213e; margin-top:4px;">
+          <div style="color:#888; font-size:12px;">Select a model first to see classes</div>
+        </div>
+        <div style="font-size:11px; color:#888; margin-top:2px;" id="autoAnnotateClassCount"></div>
+      </div>
+    </div>
 
     <div id="autoAnnotateProgress" style="display:none; margin-top:12px;">
       <div style="font-size:12px; color:#ccc; margin-bottom:4px;" id="autoAnnotateProgressText">Processing...</div>
@@ -336,6 +363,192 @@
     <div id="browseModelList" style="min-height:100px; max-height:340px; overflow-y:auto; border:1px solid #0f3460; border-radius:6px; background:#0e1628; padding:2px 0;"></div>
     <div class="modal-actions" style="margin-top:12px;">
       <button class="btn" onclick="closeModal('browseModelModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Validation Modal -->
+<div class="modal-overlay" id="validateModal">
+  <div class="modal" style="min-width:520px; max-width:700px;">
+    <h2>📊 Model Validation</h2>
+    <p style="font-size:12px; color:#888; margin-bottom:10px;">Run model.val() to evaluate mAP, precision, recall, and generate plots.</p>
+
+    <label>Model (.pt)</label>
+    <select id="valModelSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+      <option value="">Select model...</option>
+    </select>
+
+    <label style="margin-top:8px;">Data YAML</label>
+    <div style="display:flex; gap:6px;">
+      <input type="text" id="valDataYaml" placeholder="/path/to/data.yaml" style="flex:1;">
+      <button class="btn btn-secondary" style="padding:6px 12px;" onclick="browseFolders(document.getElementById('valDataYaml').value || '', 'valDataBrowser', 'valDataYaml', '.yaml,.yml')">📁</button>
+    </div>
+    <div class="folder-browser" id="valDataBrowser"></div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px;">
+      <div>
+        <label>Image Size</label>
+        <input type="number" id="valImgsz" value="640" min="32" max="4096" step="32" style="width:100%;">
+      </div>
+      <div>
+        <label>Conf Threshold</label>
+        <input type="number" id="valConf" value="0.001" min="0.001" max="1" step="0.01" style="width:100%;">
+      </div>
+      <div>
+        <label>IoU Threshold</label>
+        <input type="number" id="valIou" value="0.6" min="0.1" max="1" step="0.05" style="width:100%;">
+      </div>
+    </div>
+
+    <label style="margin-top:8px;">Split</label>
+    <select id="valSplit" style="width:100%; padding:6px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px;">
+      <option value="val" selected>Validation</option>
+      <option value="test">Test</option>
+    </select>
+
+    <!-- Results -->
+    <div id="valResultsSection" style="display:none; margin-top:12px;">
+      <h3 style="font-size:13px; color:#e94560; margin-bottom:6px;">Results</h3>
+      <div id="valMetricsCards" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-bottom:10px;"></div>
+      <div id="valPerClassTable" style="max-height:200px; overflow-y:auto; margin-bottom:10px;"></div>
+      <div id="valPlots" style="display:grid; grid-template-columns:1fr 1fr; gap:6px;"></div>
+    </div>
+
+    <div id="valProgress" style="display:none; margin-top:12px;">
+      <div style="font-size:12px; color:#ccc;">⏳ Validating... this may take a while.</div>
+      <div style="height:4px; background:#16213e; border-radius:2px; margin-top:6px; overflow:hidden;">
+        <div style="height:100%; background:#4caf50; width:100%; animation: pulse 1.5s ease-in-out infinite;"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('validateModal')">Close</button>
+      <button class="btn btn-primary" id="valStartBtn" onclick="startValidation()">🚀 Validate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Model Export Modal -->
+<div class="modal-overlay" id="modelExportModal">
+  <div class="modal" style="min-width:480px; max-width:580px;">
+    <h2>📦 Export Model</h2>
+    <p style="font-size:12px; color:#888; margin-bottom:10px;">Convert a .pt model to ONNX, TensorRT, CoreML, TFLite, etc.</p>
+
+    <label>Source Model (.pt)</label>
+    <select id="exportModelSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+      <option value="">Select model...</option>
+    </select>
+
+    <label style="margin-top:8px;">Export Format</label>
+    <select id="modelExportFmtSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+      <option value="onnx">ONNX</option>
+      <option value="torchscript">TorchScript</option>
+      <option value="openvino">OpenVINO</option>
+      <option value="engine">TensorRT</option>
+      <option value="coreml">CoreML</option>
+      <option value="saved_model">TF SavedModel</option>
+      <option value="tflite">TFLite</option>
+      <option value="pb">TF GraphDef</option>
+      <option value="edgetpu">Edge TPU</option>
+      <option value="tfjs">TF.js</option>
+      <option value="paddle">PaddlePaddle</option>
+      <option value="mnn">MNN</option>
+      <option value="ncnn">NCNN</option>
+      <option value="imx">IMX500</option>
+      <option value="rknn">RKNN</option>
+      <option value="executorch">ExecuTorch</option>
+      <option value="axelera">Axelera</option>
+    </select>
+    <div id="exportFormatDesc" style="font-size:11px; color:#666; margin-top:2px;">Open Neural Network Exchange</div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+      <div>
+        <label>Image Size</label>
+        <input type="number" id="exportImgsz" value="640" min="32" max="4096" step="32" style="width:100%;">
+      </div>
+      <div>
+        <label>Batch Size</label>
+        <input type="number" id="exportBatch" value="1" min="1" max="32" style="width:100%;">
+      </div>
+    </div>
+
+    <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap;">
+      <label id="exportHalfWrap"><input type="checkbox" id="exportHalf"> FP16 Half Precision</label>
+      <label id="exportDynamicWrap"><input type="checkbox" id="exportDynamic"> Dynamic Axes</label>
+      <label id="exportSimplifyWrap"><input type="checkbox" id="exportSimplify" checked> Simplify Graph</label>
+    </div>
+
+    <!-- Result -->
+    <div id="exportResultSection" style="display:none; margin-top:12px; padding:10px; background:#0e1628; border-radius:6px;">
+      <div id="exportResultContent"></div>
+    </div>
+
+    <div id="exportProgress" style="display:none; margin-top:12px;">
+      <div style="font-size:12px; color:#ccc;">⏳ Exporting model... this may take a while.</div>
+      <div style="height:4px; background:#16213e; border-radius:2px; margin-top:6px; overflow:hidden;">
+        <div style="height:100%; background:#2196f3; width:100%; animation: pulse 1.5s ease-in-out infinite;"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('modelExportModal')">Close</button>
+      <button class="btn btn-primary" id="exportStartBtn" onclick="startModelExport()">📦 Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Model Benchmark Modal -->
+<div class="modal-overlay" id="benchmarkModal">
+  <div class="modal" style="min-width:520px; max-width:700px;">
+    <h2>⚡ Model Benchmark</h2>
+    <p style="font-size:12px; color:#888; margin-bottom:10px;">Compare model performance across export formats — speed, size, and accuracy.</p>
+
+    <label>Model (.pt)</label>
+    <select id="benchModelSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+      <option value="">Select model...</option>
+    </select>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px;">
+      <div>
+        <label>Image Size</label>
+        <input type="number" id="benchImgsz" value="640" min="32" max="4096" step="32" style="width:100%;">
+      </div>
+      <div>
+        <label>Device</label>
+        <select id="benchDevice" style="width:100%; padding:6px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px;">
+          <option value="cpu">CPU</option>
+          <option value="0">GPU 0</option>
+        </select>
+      </div>
+      <div>
+        <label>FP16</label>
+        <select id="benchHalf" style="width:100%; padding:6px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px;">
+          <option value="false">No</option>
+          <option value="true">Yes</option>
+        </select>
+      </div>
+    </div>
+
+    <label style="margin-top:8px;">Data YAML (optional)</label>
+    <input type="text" id="benchDataYaml" placeholder="Leave empty for default" style="width:100%;">
+
+    <!-- Results Table -->
+    <div id="benchResultsSection" style="display:none; margin-top:12px;">
+      <h3 style="font-size:13px; color:#e94560; margin-bottom:6px;">Benchmark Results</h3>
+      <div id="benchResultsTable" style="max-height:300px; overflow-y:auto;"></div>
+    </div>
+
+    <div id="benchProgress" style="display:none; margin-top:12px;">
+      <div style="font-size:12px; color:#ccc;">⏳ Running benchmark... this may take several minutes.</div>
+      <div style="font-size:11px; color:#666; margin-top:2px;">You can close this modal — benchmark continues in background.</div>
+      <div style="height:4px; background:#16213e; border-radius:2px; margin-top:6px; overflow:hidden;">
+        <div style="height:100%; background:#ff9800; width:100%; animation: pulse 1.5s ease-in-out infinite;"></div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('benchmarkModal')">Close</button>
+      <button class="btn btn-primary" id="benchStartBtn" onclick="startBenchmark()">⚡ Run Benchmark</button>
     </div>
   </div>
 </div>

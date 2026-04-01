@@ -8,10 +8,9 @@
     <div class="spacer"></div>
     <div class="members-list" id="topbarMembers"></div>
     <div class="user-indicator">
-      <div class="dot" id="topbarUserDot"></div>
       <span id="topbarUsername"></span>
     </div>
-    <div class="ws-indicator" id="wsIndicator" title="WebSocket connected"></div>
+    <span class="ws-status disconnected" id="wsIndicator">⏳ Connecting</span>
   </div>
   <div class="annotator-body">
     <div class="sidebar">
@@ -21,10 +20,8 @@
       </div>
       <div style="padding:6px 16px; display:flex; gap:4px;">
         <button class="tool-btn" style="flex:1; font-size:11px;" id="openFolderBtn" title="Open image folder">📂 Open</button>
-        <button class="tool-btn" style="flex:1; font-size:11px;" onclick="toggleBatchMode()" title="Multi-select mode">☑ Additional Tools</button>
         <button class="tool-btn" style="flex:1; font-size:11px;" onclick="openSettingsModal()" title="Settings">⚙ Settings</button>
       </div>
-      <div class="dir-display" id="dirDisplay">Loading...</div>
       <div class="user-legend" id="userLegend" style="display:none;">
         <div class="user-legend-title">Editor colors:</div>
         <div id="userLegendItems"></div>
@@ -50,12 +47,12 @@
         </select>
       </div>
       <div class="batch-toolbar" id="batchToolbar">
-        <span>Selected: <span class="batch-count" id="batchCount">0</span></span>
+        <span class="batch-count" id="batchCount">0</span>
         <button onclick="batchSelectAll()">All</button>
         <button onclick="batchSelectNone()">None</button>
-        <button onclick="batchDeleteLabels()" title="Delete labels for selected">🗑 Labels</button>
-        <button onclick="openBatchReassign()" title="Reassign class">🔄 Class</button>
-        <button onclick="openBatchAssign()" title="Assign to member">👤 Assign</button>
+        <button onclick="batchDeleteLabels()" title="Delete labels for selected">🗑</button>
+        <button onclick="openBatchReassign()" title="Reassign class">🔄</button>
+        <button onclick="openBatchAssign()" title="Assign to member">👤</button>
       </div>
       <div class="image-list" id="imageList"></div>
       <div class="pagination-bar" id="paginationBar">
@@ -96,13 +93,14 @@
       </div>
       <div class="inference-toolbar" id="inferenceToolbar">
         <span>🔮 Inference:</span>
-        <select id="inferenceModelSelect"><option value="">Select model...</option></select>
+        <select id="inferenceModelSelect" style="max-width:180px;"><option value="">Select model...</option></select>
+        <button onclick="openModelBrowserForInference()" style="font-size:10px; padding:2px 6px; cursor:pointer; border-radius:3px; border:1px solid #0f3460; background:#16213e; color:#ccc;" title="Browse for model">📂</button>
         <label>Conf: <input type="range" id="inferenceConfSlider" min="5" max="95" value="25" style="width:60px;" oninput="document.getElementById('inferenceConfVal').textContent=this.value+'%'"><span id="inferenceConfVal">25%</span></label>
         <button onclick="runInference()" style="background:#4caf50; color:#fff; border:none; border-radius:3px; padding:2px 8px; cursor:pointer;">▶ Run</button>
-        <button onclick="clearInference()">✕ Clear</button>
-        <button onclick="acceptInference()" title="Accept detections as labels">✅ Accept</button>
+        <button id="infClearBtn" onclick="clearInference()" style="display:none; border:1px solid #0f3460; background:#16213e; color:#ccc; border-radius:3px; padding:2px 8px; cursor:pointer;">✕ Clear</button>
+        <button id="infAcceptBtn" onclick="acceptInference()" style="display:none; border:1px solid #4caf50; background:#1b5e20; color:#fff; border-radius:3px; padding:2px 8px; cursor:pointer;" title="Accept detections as labels">✅ Accept</button>
         <span style="border-left:1px solid #0f3460; margin:0 6px; height:16px; display:inline-block;"></span>
-        <button onclick="openAutoAnnotate()" style="background:#9c27b0; color:#fff; border:none; border-radius:3px; padding:2px 8px; cursor:pointer;" title="Run predictions on all/selected images and save as labels">🤖 Auto-Annotate Batch</button>
+        <button onclick="openAutoAnnotate()" style="background:#9c27b0; color:#fff; border:none; border-radius:3px; padding:2px 8px; cursor:pointer;" title="Run predictions on all/selected images and save as labels">🤖 Auto-Annotate</button>
       </div>
     </div>
 
@@ -119,14 +117,15 @@
       <div class="bbox-list" id="bboxList"><div style="padding:16px;color:#666;font-size:12px;">No boxes yet</div></div>
 
       <div class="panel-section">
-        <button class="tool-btn" style="font-size:11px; width:100%;" onclick="openAssignModal()">👥 Assign Members <span id="assigneeBadge" style="font-size:10px; color:#888;"></span></button>
+        <button class="tool-btn" style="font-size:11px; width:100%;" onclick="openAssignModal()">👥 Assign Members</button>
+        <div id="assigneeBadge" style="font-size:10px; margin-top:4px; display:none;"></div>
       </div>
       <div class="panel-section">
         <h3>Quality <span style="float:right;cursor:pointer;font-size:11px;color:#888;" onclick="openQualityMetrics()">📊 Details</span></h3>
         <div id="qualitySummary" style="font-size:11px; color:#888; padding:4px 0;">Click Details to analyze</div>
       </div>
       <div class="panel-section">
-        <h3 style="cursor:pointer;" onclick="this.parentElement.querySelector('.shortcuts').classList.toggle('collapsed'); this.querySelector('.collapse-icon').textContent = this.parentElement.querySelector('.shortcuts').classList.contains('collapsed') ? '▶' : '▼'">Shortcuts <span class="collapse-icon" style="font-size:10px;">▼</span> <span style="float:right;cursor:pointer;font-size:11px;color:#888;" onclick="event.stopPropagation();openModal('shortcutsModal')">?</span></h3>
+        <h3><span style="cursor:pointer;" onclick="const s=this.closest('.panel-section').querySelector('.shortcuts');s.classList.toggle('collapsed');this.querySelector('.collapse-icon').textContent=s.classList.contains('collapsed')?'▶':'▼'">Shortcuts <span class="collapse-icon" style="font-size:10px;">▼</span></span> <span style="float:right;cursor:pointer;font-size:11px;color:#888;" onclick="openModal('shortcutsModal')">?</span></h3>
         <div class="shortcuts">
           <kbd>B</kbd> Draw <kbd>G</kbd> Poly <kbd>V</kbd> Sel <kbd>F</kbd> Fit<br>
           <kbd>A</kbd>/<kbd>D</kbd> Nav <kbd>Del</kbd> Del <kbd>Esc</kbd> Cancel<br>

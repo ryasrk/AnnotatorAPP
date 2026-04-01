@@ -15,6 +15,7 @@ from routes.training_routes import bp as training_bp
 from routes.assignment_routes import bp as assignment_bp
 from routes.batch_routes import bp as batch_bp
 from routes.inference_routes import bp as inference_bp
+from routes.model_routes import bp as model_bp
 
 
 def register_blueprints(app):
@@ -31,3 +32,4 @@ def register_blueprints(app):
     app.register_blueprint(assignment_bp)
     app.register_blueprint(batch_bp)
     app.register_blueprint(inference_bp)
+    app.register_blueprint(model_bp)

@@ -42,25 +42,46 @@ def api_inference_predict():
         model = YOLO(str(model_file))
         results = model.predict(str(image_path), conf=confidence, verbose=False)
         model_names = model.names if hasattr(model, 'names') else {}
+        is_seg = hasattr(results[0], 'masks') and results[0].masks is not None
         detections = []
         for r in results:
+            img_w, img_h = r.orig_shape[1], r.orig_shape[0]
+            # Segmentation masks → polygon annotations
+            if is_seg and r.masks is not None:
+                for i, mask in enumerate(r.masks.xyn):
+                    points = mask.tolist()
+                    if len(points) < 3:
+                        continue
+                    cls_id = int(r.boxes[i].cls[0])
+                    detections.append({
+                        "type": "polygon",
+                        "class_id": cls_id,
+                        "class_name": model_names.get(cls_id, f"class_{cls_id}"),
+                        "confidence": round(float(r.boxes[i].conf[0]), 3),
+                        "points": [[round(p[0], 6), round(p[1], 6)] for p in points],
+                    })
+            # Bounding boxes
             for box in r.boxes:
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
-                img_w, img_h = r.orig_shape[1], r.orig_shape[0]
                 cx = (x1 + x2) / 2 / img_w
                 cy = (y1 + y2) / 2 / img_h
                 bw = (x2 - x1) / img_w
                 bh = (y2 - y1) / img_h
                 cls_id = int(box.cls[0])
-                detections.append({
+                det = {
+                    "type": "bbox",
                     "class_id": cls_id,
                     "class_name": model_names.get(cls_id, f"class_{cls_id}"),
                     "confidence": round(float(box.conf[0]), 3),
                     "cx": round(cx, 6), "cy": round(cy, 6),
                     "w": round(bw, 6), "h": round(bh, 6),
-                })
+                }
+                # Only add bbox if not a seg model (seg already has polygons)
+                if not is_seg:
+                    detections.append(det)
         return jsonify({"ok": True, "detections": detections, "count": len(detections),
-                        "model_names": {str(k): v for k, v in model_names.items()}})
+                        "model_names": {str(k): v for k, v in model_names.items()},
+                        "is_seg": is_seg})
     except ImportError:
         return jsonify({"error": "ultralytics not installed"}), 500
     except Exception as e:
@@ -180,6 +201,9 @@ def api_apply_predictions():
             model = YOLO(str(model_file))
             model_names = model.names if hasattr(model, 'names') else {}
             selected_classes_set = set(int(c) for c in selected_classes) if selected_classes is not None else None
+            iou_thresh = max(0.01, min(1.0, float(data.get("iou", 0.7))))
+            imgsz_val = int(data.get("imgsz", 640))
+            max_det_val = int(data.get("max_det", 300))
             saved_count = 0
 
             for idx, img_name in enumerate(targets):
@@ -194,33 +218,54 @@ def api_apply_predictions():
                         continue
 
                 try:
-                    results = model.predict(str(img_path), conf=confidence, verbose=False)
+                    results = model.predict(str(img_path), conf=confidence, iou=iou_thresh,
+                                            imgsz=imgsz_val, max_det=max_det_val, verbose=False)
                     labels = []
                     for r in results:
-                        for box in r.boxes:
-                            x1, y1, x2, y2 = box.xyxy[0].tolist()
-                            img_w, img_h = r.orig_shape[1], r.orig_shape[0]
-                            cx = round((x1 + x2) / 2 / img_w, 6)
-                            cy = round((y1 + y2) / 2 / img_h, 6)
-                            bw = round((x2 - x1) / img_w, 6)
-                            bh = round((y2 - y1) / img_h, 6)
-                            cls_id = int(box.cls[0])
+                        img_w, img_h = r.orig_shape[1], r.orig_shape[0]
+                        is_seg = hasattr(r, 'masks') and r.masks is not None
 
-                            # Filter by selected classes if specified
-                            if selected_classes is not None and cls_id not in selected_classes_set:
-                                continue
+                        # Segmentation model → polygon labels
+                        if is_seg and r.masks is not None:
+                            for i, mask in enumerate(r.masks.xyn):
+                                points = mask.tolist()
+                                if len(points) < 3:
+                                    continue
+                                cls_id = int(r.boxes[i].cls[0])
+                                if selected_classes_set is not None and cls_id not in selected_classes_set:
+                                    continue
+                                if class_mapping and str(cls_id) in class_mapping:
+                                    cls_id = int(class_mapping[str(cls_id)])
+                                labels.append({
+                                    "type": "polygon",
+                                    "class_id": cls_id,
+                                    "points": [[max(0.0, min(1.0, p[0])), max(0.0, min(1.0, p[1]))] for p in points],
+                                })
+                        else:
+                            # Detection model → bbox labels
+                            for box in r.boxes:
+                                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                                cx = round((x1 + x2) / 2 / img_w, 6)
+                                cy = round((y1 + y2) / 2 / img_h, 6)
+                                bw = round((x2 - x1) / img_w, 6)
+                                bh = round((y2 - y1) / img_h, 6)
+                                cls_id = int(box.cls[0])
 
-                            # Apply class mapping if provided
-                            if class_mapping and str(cls_id) in class_mapping:
-                                cls_id = int(class_mapping[str(cls_id)])
+                                # Filter by selected classes if specified
+                                if selected_classes_set is not None and cls_id not in selected_classes_set:
+                                    continue
 
-                            labels.append({
-                                "class_id": cls_id,
-                                "cx": max(0.0, min(1.0, cx)),
-                                "cy": max(0.0, min(1.0, cy)),
-                                "w": max(0.0, min(1.0, bw)),
-                                "h": max(0.0, min(1.0, bh)),
-                            })
+                                # Apply class mapping if provided
+                                if class_mapping and str(cls_id) in class_mapping:
+                                    cls_id = int(class_mapping[str(cls_id)])
+
+                                labels.append({
+                                    "class_id": cls_id,
+                                    "cx": max(0.0, min(1.0, cx)),
+                                    "cy": max(0.0, min(1.0, cy)),
+                                    "w": max(0.0, min(1.0, bw)),
+                                    "h": max(0.0, min(1.0, bh)),
+                                })
 
                     if labels:
                         write_labels(img_name, labels)
