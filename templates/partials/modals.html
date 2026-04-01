@@ -379,9 +379,12 @@
     <p style="font-size:12px; color:#888; margin-bottom:10px;">Run model.val() to evaluate mAP, precision, recall, and generate plots.</p>
 
     <label>Model (.pt)</label>
-    <select id="valModelSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
-      <option value="">Select model...</option>
-    </select>
+    <div style="display:flex; gap:6px;">
+      <select id="valModelSelect" style="flex:1; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+        <option value="">Select model...</option>
+      </select>
+      <button class="btn" type="button" onclick="openModelBrowserFor('valModelSelect')" style="font-size:12px; padding:6px 12px; white-space:nowrap;" title="Browse for .pt model">📂</button>
+    </div>
 
     <label style="margin-top:8px;">Data YAML</label>
     <div style="display:flex; gap:6px;">
@@ -440,9 +443,12 @@
     <p style="font-size:12px; color:#888; margin-bottom:10px;">Convert a .pt model to ONNX, TensorRT, CoreML, TFLite, etc.</p>
 
     <label>Source Model (.pt)</label>
-    <select id="exportModelSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
-      <option value="">Select model...</option>
-    </select>
+    <div style="display:flex; gap:6px;">
+      <select id="exportModelSelect" style="flex:1; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+        <option value="">Select model...</option>
+      </select>
+      <button class="btn" type="button" onclick="openModelBrowserFor('exportModelSelect')" style="font-size:12px; padding:6px 12px; white-space:nowrap;" title="Browse for .pt model">📂</button>
+    </div>
 
     <label style="margin-top:8px;">Export Format</label>
     <select id="modelExportFmtSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
@@ -509,9 +515,12 @@
     <p style="font-size:12px; color:#888; margin-bottom:10px;">Compare model performance across export formats — speed, size, and accuracy.</p>
 
     <label>Model (.pt)</label>
-    <select id="benchModelSelect" style="width:100%; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
-      <option value="">Select model...</option>
-    </select>
+    <div style="display:flex; gap:6px;">
+      <select id="benchModelSelect" style="flex:1; padding:8px 10px; border:1px solid #0f3460; background:#1a1a2e; color:#e0e0e0; border-radius:4px; font-size:13px;">
+        <option value="">Select model...</option>
+      </select>
+      <button class="btn" type="button" onclick="openModelBrowserFor('benchModelSelect')" style="font-size:12px; padding:6px 12px; white-space:nowrap;" title="Browse for .pt model">📂</button>
+    </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px;">
       <div>

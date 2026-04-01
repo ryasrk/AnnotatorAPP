@@ -1389,21 +1389,8 @@ let _valPollTimer = null;
 let _valJobId = null;
 
 async function loadModelSelectOptions(selectId) {
-    const sel = document.getElementById(selectId);
-    if (!sel) return;
-    const existing = sel.value;
-    try {
-        const res = await fetch('/api/inference/models');
-        const data = await res.json();
-        sel.innerHTML = '<option value="">Select model...</option>';
-        (data.models || []).forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m.path;
-            opt.textContent = m.name + ' (' + m.size_mb + ' MB)';
-            sel.appendChild(opt);
-        });
-        if (existing) sel.value = existing;
-    } catch(e) {}
+    // Delegates to shared model list — syncs all model selects
+    await loadInferenceModels();
 }
 
 // --- Validation ---
@@ -2054,7 +2041,7 @@ let _sharedModels = [];
 let _browsedModels = [];
 
 function syncModelSelects(preserveSelection) {
-    const ids = ['inferenceModelSelect', 'autoAnnotateModel'];
+    const ids = ['inferenceModelSelect', 'autoAnnotateModel', 'valModelSelect', 'exportModelSelect', 'benchModelSelect'];
     const saved = {};
     ids.forEach(id => { const s = document.getElementById(id); if (s) saved[id] = s.value; });
     const all = _sharedModels.concat(_browsedModels);
@@ -2255,6 +2242,12 @@ function openModelBrowser(browsePath) {
 
 function openModelBrowserForInference(browsePath) {
     _modelBrowserTarget = 'inferenceModelSelect';
+    openModal('browseModelModal');
+    browseForModel(browsePath);
+}
+
+function openModelBrowserFor(selectId, browsePath) {
+    _modelBrowserTarget = selectId;
     openModal('browseModelModal');
     browseForModel(browsePath);
 }
