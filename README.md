@@ -124,11 +124,11 @@ python app.py
 sudo systemctl start nexus-annotator.service
 ```
 
-The app runs on `http://172.20.10.10:5000` by default. Configure via environment variables:
+The app runs on `http://localhost:5000` by default. Configure via environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HOST` | `172.20.10.10` | Server bind address |
+| `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `5000` | Server port |
 | `SECRET_KEY` | random | Flask secret key |
 | `CORS_ORIGINS` | `*` | Allowed CORS origins |
