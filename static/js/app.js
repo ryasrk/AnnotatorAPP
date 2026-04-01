@@ -2238,7 +2238,10 @@ async function openAutoAnnotate() {
     if (modeMap[currentFilter]) modeSelect.value = modeMap[currentFilter];
     await loadInferenceModels();
     document.getElementById('autoAnnotateProgress').style.display = 'none';
-    document.getElementById('autoAnnotateBtn').disabled = false;
+    const aaBtn = document.getElementById('autoAnnotateBtn');
+    aaBtn.disabled = false;
+    aaBtn.textContent = '🚀 Start Auto-Annotate';
+    aaBtn.onclick = startAutoAnnotate;
 }
 
 let _modelBrowserTarget = 'autoAnnotateModel';
@@ -2472,9 +2475,11 @@ function _pollAutoAnnotateProgress() {
                     (data.no_detect ? ', ' + data.no_detect + ' no detections' : '') +
                     (data.errors ? ', ' + data.errors + ' errors' : '') +
                     ' of ' + data.total + ' images.';
-                document.getElementById('autoAnnotateBtn').disabled = false;
+                const btn = document.getElementById('autoAnnotateBtn');
+                btn.disabled = false;
+                btn.textContent = '✖ Close';
+                btn.onclick = function() { closeModal('autoAnnotateModal'); btn.textContent = '🚀 Start Auto-Annotate'; btn.onclick = startAutoAnnotate; };
                 showToast('Auto-annotate complete: ' + data.saved + ' images annotated');
-                // Refresh the image list to show new annotations
                 loadImagePage(currentPage);
                 updateStats();
             } else if (data.status === 'error') {
