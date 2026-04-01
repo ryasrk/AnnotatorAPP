@@ -219,6 +219,11 @@ function initSocket() {
         if (btn) btn.disabled = false;
         loadImagePage(currentPage);
         updateStats();
+        // Refresh class select if new classes were added
+        if (data.classes_updated && data.classes) {
+            const sel = document.getElementById('classSelect');
+            sel.innerHTML = data.classes.map((name, i) => '<option value="' + i + '">' + i + ': ' + escHtml(name) + '</option>').join('');
+        }
     });
 
     socket.on('apply_error', (data) => {

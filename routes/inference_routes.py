@@ -226,6 +226,55 @@ def api_apply_predictions():
             error_count = 0
             no_detect_count = 0
 
+            # Build model→room class mapping
+            # Get room's current classes
+            from database import get_db
+            room_classes = []
+            if room_id:
+                db = get_db()
+                rows = db.execute(
+                    "SELECT class_name FROM room_classes WHERE room_id = ? ORDER BY class_index",
+                    (room_id,),
+                ).fetchall()
+                room_classes = [r["class_name"] for r in rows]
+                db.close()
+            if not room_classes:
+                room_classes = list(state.CLASS_NAMES)
+
+            # Map model class IDs to room class IDs, adding new classes as needed
+            model_to_room = {}
+            classes_updated = False
+            for model_cls_id, model_cls_name in model_names.items():
+                model_cls_id = int(model_cls_id)
+                if selected_classes_set is not None and model_cls_id not in selected_classes_set:
+                    continue
+                # Check if this class name already exists in room
+                found = False
+                for room_idx, room_name in enumerate(room_classes):
+                    if room_name.lower() == model_cls_name.lower():
+                        model_to_room[model_cls_id] = room_idx
+                        found = True
+                        break
+                if not found:
+                    # Add new class to room
+                    new_idx = len(room_classes)
+                    room_classes.append(model_cls_name)
+                    model_to_room[model_cls_id] = new_idx
+                    classes_updated = True
+
+            # Save updated classes to DB
+            if classes_updated and room_id:
+                db = get_db()
+                db.execute("DELETE FROM room_classes WHERE room_id = ?", (room_id,))
+                for idx_c, name_c in enumerate(room_classes):
+                    db.execute(
+                        "INSERT INTO room_classes (room_id, class_index, class_name) VALUES (?, ?, ?)",
+                        (room_id, idx_c, name_c),
+                    )
+                db.commit()
+                db.close()
+                state.CLASS_NAMES = room_classes
+
             for idx, img_name in enumerate(targets):
                 img_path = state.RAW_IMAGES_DIR / img_name
 
@@ -256,11 +305,11 @@ def api_apply_predictions():
                                 cls_id = int(r.boxes[i].cls[0])
                                 if selected_classes_set is not None and cls_id not in selected_classes_set:
                                     continue
-                                if class_mapping and str(cls_id) in class_mapping:
-                                    cls_id = int(class_mapping[str(cls_id)])
+                                # Map model class → room class
+                                room_cls = model_to_room.get(cls_id, cls_id)
                                 labels.append({
                                     "type": "polygon",
-                                    "class_id": cls_id,
+                                    "class_id": room_cls,
                                     "points": [[max(0.0, min(1.0, p[0])), max(0.0, min(1.0, p[1]))] for p in points],
                                 })
                         else:
@@ -277,12 +326,11 @@ def api_apply_predictions():
                                 if selected_classes_set is not None and cls_id not in selected_classes_set:
                                     continue
 
-                                # Apply class mapping if provided
-                                if class_mapping and str(cls_id) in class_mapping:
-                                    cls_id = int(class_mapping[str(cls_id)])
+                                # Map model class → room class
+                                room_cls = model_to_room.get(cls_id, cls_id)
 
                                 labels.append({
-                                    "class_id": cls_id,
+                                    "class_id": room_cls,
                                     "cx": max(0.0, min(1.0, cx)),
                                     "cy": max(0.0, min(1.0, cy)),
                                     "w": max(0.0, min(1.0, bw)),
@@ -332,6 +380,8 @@ def api_apply_predictions():
                 "total": len(targets),
                 "saved": saved_count,
                 "model": model_file.name,
+                "classes_updated": classes_updated,
+                "classes": room_classes if classes_updated else None,
             }, room=f"room_{room_id}" if room_id else "training")
 
         except Exception as e:
