@@ -68,6 +68,7 @@ annotation-app/
 ├── rate_limit.py       # Sliding-window rate limiter
 ├── models/             # YOLO model weights (.pt)
 ├── routes/
+│   ├── helpers.py            # Shared route utilities (error handler)
 │   ├── auth_routes.py        # Login, register, user info
 │   ├── room_routes.py        # Room CRUD, join, privacy
 │   ├── folder_routes.py      # File/folder browsing
@@ -91,7 +92,17 @@ annotation-app/
 │   └── events.py             # WebSocket event handlers
 ├── static/
 │   ├── css/styles.css        # Application styles
-│   └── js/app.js             # Frontend SPA (~3000 lines)
+│   └── js/
+│       ├── state.js          # Global state & constants (48 lines)
+│       ├── api.js            # Unified API client (apiGet/apiPost/apiDelete)
+│       ├── utils.js          # Shared utilities (toast, modals, undo)
+│       ├── socket.js         # WebSocket initialization & events
+│       ├── auth.js           # Authentication & room management
+│       ├── training.js       # Training view, GPU, sessions, charts
+│       ├── chat.js           # Chat, notifications, remote cursors
+│       ├── models.js         # Model validate/export/benchmark & inference
+│       ├── canvas.js         # Canvas rendering, polygon, mouse/keyboard
+│       └── app.js            # Dashboard, batch, assignments, init
 └── templates/
     ├── base.html
     ├── index.html

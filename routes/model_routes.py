@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, session
+from routes.helpers import api_error_handler
 
 from auth import login_required
 from config import BASE_DIR
@@ -33,6 +34,7 @@ _model_jobs_lock = threading.Lock()
 @bp.route("/api/model/validate", methods=["POST"])
 @login_required
 @heavy_rate_limit
+@api_error_handler
 def api_model_validate():
     """Run YOLO model validation and return metrics + plot paths."""
     data = request.get_json() or {}
@@ -191,6 +193,7 @@ def api_export_formats():
 @bp.route("/api/model/export", methods=["POST"])
 @login_required
 @heavy_rate_limit
+@api_error_handler
 def api_model_export():
     """Export a YOLO .pt model to another format."""
     data = request.get_json() or {}
@@ -283,6 +286,7 @@ def api_model_export():
 @bp.route("/api/model/benchmark", methods=["POST"])
 @login_required
 @heavy_rate_limit
+@api_error_handler
 def api_model_benchmark():
     """Benchmark a YOLO model across different export formats."""
     data = request.get_json() or {}
@@ -403,6 +407,7 @@ def api_model_plot():
 @bp.route("/api/dataset/split", methods=["POST"])
 @login_required
 @heavy_rate_limit
+@api_error_handler
 def api_dataset_split():
     """Split annotated images into train/val/test sets and export."""
     import random

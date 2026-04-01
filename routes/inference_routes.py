@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, session
 
 from auth import login_required
+from routes.helpers import api_error_handler
 from config import BASE_DIR, MODELS_DIR
 from extensions import socketio
 from rate_limit import heavy_rate_limit
@@ -20,6 +21,7 @@ bp = Blueprint("inference_routes", __name__)
 @bp.route("/api/inference/predict", methods=["POST"])
 @login_required
 @heavy_rate_limit
+@api_error_handler
 def api_inference_predict():
     data = request.get_json()
     model_path = data.get("model_path", "")
@@ -152,6 +154,7 @@ _apply_lock = threading.Lock()
 @bp.route("/api/inference/apply-predictions", methods=["POST"])
 @login_required
 @heavy_rate_limit
+@api_error_handler
 def api_apply_predictions():
     """Run inference on selected (or all unannotated) images and save detections as labels.
 
