@@ -223,6 +223,8 @@ def api_apply_predictions():
             max_det_val = int(data.get("max_det", 300))
             saved_count = 0
             skipped_count = 0
+            error_count = 0
+            no_detect_count = 0
 
             for idx, img_name in enumerate(targets):
                 img_path = state.RAW_IMAGES_DIR / img_name
@@ -295,15 +297,20 @@ def api_apply_predictions():
                                 "bbox_count": len(labels),
                             }
                         saved_count += 1
+                    else:
+                        no_detect_count += 1
 
                 except Exception as e:
                     import traceback
                     traceback.print_exc()  # Log to stderr so we can debug
+                    error_count += 1
 
                 with _apply_lock:
                     _apply_progress[job_id]["done"] = idx + 1
                     _apply_progress[job_id]["saved"] = saved_count
                     _apply_progress[job_id]["skipped"] = skipped_count
+                    _apply_progress[job_id]["no_detect"] = no_detect_count
+                    _apply_progress[job_id]["errors"] = error_count
 
                 # Emit progress every 10 images
                 if (idx + 1) % 10 == 0 or idx == len(targets) - 1:
@@ -312,6 +319,8 @@ def api_apply_predictions():
                         "total": len(targets),
                         "saved": saved_count,
                         "skipped": skipped_count,
+                        "no_detect": no_detect_count,
+                        "errors": error_count,
                     }, room=f"room_{room_id}" if room_id else "training")
 
             with _apply_lock:

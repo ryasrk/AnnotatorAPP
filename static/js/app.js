@@ -2454,12 +2454,19 @@ function _pollAutoAnnotateProgress() {
                 const pct = data.total > 0 ? Math.round(data.done / data.total * 100) : 0;
                 document.getElementById('autoAnnotateProgressBar').style.width = pct + '%';
                 document.getElementById('autoAnnotateProgressText').textContent =
-                    'Processing ' + data.done + '/' + data.total + ' — ' + data.saved + ' saved' + (data.skipped ? ', ' + data.skipped + ' skipped' : '');
+                    'Processing ' + data.done + '/' + data.total + ' — ' + data.saved + ' saved' +
+                    (data.skipped ? ', ' + data.skipped + ' skipped' : '') +
+                    (data.no_detect ? ', ' + data.no_detect + ' empty' : '') +
+                    (data.errors ? ', ' + data.errors + ' errors' : '');
                 setTimeout(poll, 1000);
             } else if (data.status === 'completed') {
                 document.getElementById('autoAnnotateProgressBar').style.width = '100%';
                 document.getElementById('autoAnnotateProgressText').textContent =
-                    'Done! ' + data.saved + ' saved' + (data.skipped ? ', ' + data.skipped + ' skipped (already annotated)' : '') + ' of ' + data.total + ' images.';
+                    'Done! ' + data.saved + ' saved' +
+                    (data.skipped ? ', ' + data.skipped + ' skipped' : '') +
+                    (data.no_detect ? ', ' + data.no_detect + ' no detections' : '') +
+                    (data.errors ? ', ' + data.errors + ' errors' : '') +
+                    ' of ' + data.total + ' images.';
                 document.getElementById('autoAnnotateBtn').disabled = false;
                 showToast('Auto-annotate complete: ' + data.saved + ' images annotated');
                 // Refresh the image list to show new annotations
