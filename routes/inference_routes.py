@@ -222,6 +222,7 @@ def api_apply_predictions():
             imgsz_val = int(data.get("imgsz", 640))
             max_det_val = int(data.get("max_det", 300))
             saved_count = 0
+            skipped_count = 0
 
             for idx, img_name in enumerate(targets):
                 img_path = state.RAW_IMAGES_DIR / img_name
@@ -230,8 +231,10 @@ def api_apply_predictions():
                 if not overwrite:
                     existing = read_labels(img_name)
                     if existing:
+                        skipped_count += 1
                         with _apply_lock:
                             _apply_progress[job_id]["done"] = idx + 1
+                            _apply_progress[job_id]["skipped"] = skipped_count
                         continue
 
                 try:
@@ -293,12 +296,14 @@ def api_apply_predictions():
                             }
                         saved_count += 1
 
-                except Exception:
-                    pass  # Skip individual failures
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()  # Log to stderr so we can debug
 
                 with _apply_lock:
                     _apply_progress[job_id]["done"] = idx + 1
                     _apply_progress[job_id]["saved"] = saved_count
+                    _apply_progress[job_id]["skipped"] = skipped_count
 
                 # Emit progress every 10 images
                 if (idx + 1) % 10 == 0 or idx == len(targets) - 1:
@@ -306,11 +311,13 @@ def api_apply_predictions():
                         "done": idx + 1,
                         "total": len(targets),
                         "saved": saved_count,
+                        "skipped": skipped_count,
                     }, room=f"room_{room_id}" if room_id else "training")
 
             with _apply_lock:
                 _apply_progress[job_id]["status"] = "completed"
                 _apply_progress[job_id]["saved"] = saved_count
+                _apply_progress[job_id]["skipped"] = skipped_count
 
             socketio.emit("apply_complete", {
                 "total": len(targets),

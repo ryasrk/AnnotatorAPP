@@ -2401,9 +2401,9 @@ async function startAutoAnnotate() {
     const overwrite = document.getElementById('autoAnnotateOverwrite').checked;
 
     let imageNames = [];
-    if (mode === 'selected' && typeof _batchSelected !== 'undefined') {
-        imageNames = [..._batchSelected];
-        if (imageNames.length === 0) return showToast('No images selected. Use batch mode (M) to select images.', true);
+    if (mode === 'selected') {
+        imageNames = [...batchSelected];
+        if (imageNames.length === 0) return showToast('No images selected. Use checkboxes to select images.', true);
     }
 
     document.getElementById('autoAnnotateBtn').disabled = true;
@@ -2454,12 +2454,12 @@ function _pollAutoAnnotateProgress() {
                 const pct = data.total > 0 ? Math.round(data.done / data.total * 100) : 0;
                 document.getElementById('autoAnnotateProgressBar').style.width = pct + '%';
                 document.getElementById('autoAnnotateProgressText').textContent =
-                    'Processing ' + data.done + '/' + data.total + ' — ' + data.saved + ' saved';
+                    'Processing ' + data.done + '/' + data.total + ' — ' + data.saved + ' saved' + (data.skipped ? ', ' + data.skipped + ' skipped' : '');
                 setTimeout(poll, 1000);
             } else if (data.status === 'completed') {
                 document.getElementById('autoAnnotateProgressBar').style.width = '100%';
                 document.getElementById('autoAnnotateProgressText').textContent =
-                    'Done! Saved annotations for ' + data.saved + '/' + data.total + ' images.';
+                    'Done! ' + data.saved + ' saved' + (data.skipped ? ', ' + data.skipped + ' skipped (already annotated)' : '') + ' of ' + data.total + ' images.';
                 document.getElementById('autoAnnotateBtn').disabled = false;
                 showToast('Auto-annotate complete: ' + data.saved + ' images annotated');
                 // Refresh the image list to show new annotations
