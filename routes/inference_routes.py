@@ -1,7 +1,6 @@
-"""
-Model inference routes: predict, list models, apply predictions.
-"""
+"""Model inference routes: predict, list models, apply predictions."""
 
+import gc
 import threading
 from pathlib import Path
 
@@ -16,6 +15,21 @@ from services.label_service import write_labels, read_labels
 import state
 
 bp = Blueprint("inference_routes", __name__)
+
+
+def _unload_model(model):
+    """Explicitly unload a YOLO model and free GPU/CPU memory."""
+    try:
+        del model
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
+    except Exception:
+        pass
 
 
 @bp.route("/api/inference/predict", methods=["POST"])
@@ -88,6 +102,9 @@ def api_inference_predict():
         return jsonify({"error": "ultralytics not installed"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if 'model' in locals():
+            _unload_model(model)
 
 
 @bp.route("/api/inference/model-classes", methods=["POST"])
@@ -113,6 +130,9 @@ def api_model_classes():
         return jsonify({"error": "ultralytics not installed"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    finally:
+        if 'model' in locals():
+            _unload_model(model)
 
 
 @bp.route("/api/inference/models")
@@ -401,6 +421,10 @@ def api_apply_predictions():
                 _apply_progress[job_id]["error"] = str(e)
             socketio.emit("apply_error", {"error": str(e)},
                           room=f"room_{room_id}" if room_id else "training")
+        finally:
+            # Unload model to free GPU/CPU memory after batch annotation
+            if 'model' in locals():
+                _unload_model(model)
 
     threading.Thread(target=_run_apply, daemon=True).start()
 
